@@ -7,7 +7,7 @@ import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import {
   bandaDaFonte, tamanhoMinimoDaFonte, poligonosDoTexto, caixaDosAneis, moverAneis,
   aneisParaShapes, criarGrade, pintarAneis, pintarDisco, campoDistancia,
-  binarioDoCampo, soldar, contarPedacos, contornar, simplificar, ligarPedacos,
+  binarioDoCampo, soldar, contarPedacos, contornar, simplificar, ligarPedacos, suavizar, reamostrar, limparAneis,
 } from './forma.js';
 
 // ---------- Regras de impressão (fixas) ----------
@@ -154,7 +154,7 @@ function montarNaGrade(op) {
 
   const folga = bordaTeto + (comFuro ? raioAnel * 2.4 : 0) + 3;
   const maior = Math.max(caixa.largura, caixa.altura) + folga * 2;
-  const celula = Math.min(0.42, Math.max(0.13, maior / 850));
+  const celula = Math.min(0.34, Math.max(0.11, maior / 1100));
   const grade = criarGrade(caixa, folga, celula);
 
   const mapaTexto = pintarAneis(aneisTexto, grade);
@@ -207,7 +207,11 @@ function montarNaGrade(op) {
   const pedacos = contarPedacos(mapa, grade);
   const sdf = campoDistancia(mapa, grade);
   let aneis = contornar(sdf, grade, 0);
-  aneis = simplificar(aneis, celula * 0.32);
+  // tira o serrilhado da grade e deixa as faces laterais uniformes
+  aneis = suavizar(aneis, 12);
+  aneis = reamostrar(aneis, Math.min(0.7, Math.max(0.28, maior / 420)));
+  aneis = suavizar(aneis, 4);
+  aneis = limparAneis(aneis, Math.max(0.008, celula * 0.06));
 
   const caixaPeca = caixaDosAneis(aneis);
   const formasBase = aneisParaShapes(aneis);
@@ -301,7 +305,9 @@ export function montarChaveiro(opcoes) {
 
   // ---- texto em relevo (nos estilos que têm placa por baixo) ----
   if (r.textoEmRelevo) {
-    const formasTexto = aneisParaShapes(r.aneisTexto);
+    // o contorno vindo da fonte pode trazer pontos repetidos, que virariam
+    // triangulos sem area na hora de extrudar
+    const formasTexto = aneisParaShapes(limparAneis(r.aneisTexto, 0.004, 0.004));
     if (formasTexto.length) {
       const geoTexto = new THREE.ExtrudeGeometry(formasTexto, {
         depth: alturaLetra + AFUNDAR, bevelEnabled: false, curveSegments: 1,

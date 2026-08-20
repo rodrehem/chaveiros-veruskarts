@@ -575,3 +575,133 @@ export function ligarPedacos(binario, grade, larguraPonte) {
 
   return { mapa, pontes };
 }
+
+// ---------- suavizar contornos ----------
+//
+// O contorno sai da grade em degraus (o "serrilhado"). Aqui ele é suavizado
+// pelo método de Taubin: uma passada puxa os pontos para a média dos vizinhos
+// (alisa, mas encolhe) e a passada seguinte empurra de volta com sinal trocado
+// (devolve o tamanho). Alternando as duas, a peça fica lisa e do mesmo tamanho.
+export function suavizar(aneis, passos = 10, lambda = 0.5, mu = -0.53) {
+  function suavizarAnel(pts) {
+    if (pts.length < 6) return pts;
+
+    // trabalha sem o ponto repetido do fim
+    let p = pts;
+    const a = p[0], z = p[p.length - 1];
+    if (Math.hypot(a[0] - z[0], a[1] - z[1]) < 1e-7) p = p.slice(0, -1);
+    const n = p.length;
+    if (n < 6) return pts;
+
+    let atual = new Float64Array(n * 2);
+    for (let i = 0; i < n; i++) { atual[i * 2] = p[i][0]; atual[i * 2 + 1] = p[i][1]; }
+    let proximo = new Float64Array(n * 2);
+
+    for (let passo = 0; passo < passos; passo++) {
+      const fator = passo % 2 === 0 ? lambda : mu;
+      for (let i = 0; i < n; i++) {
+        const ant = ((i - 1) + n) % n, dep = (i + 1) % n;
+        const mediaX = (atual[ant * 2] + atual[dep * 2]) / 2;
+        const mediaY = (atual[ant * 2 + 1] + atual[dep * 2 + 1]) / 2;
+        proximo[i * 2] = atual[i * 2] + fator * (mediaX - atual[i * 2]);
+        proximo[i * 2 + 1] = atual[i * 2 + 1] + fator * (mediaY - atual[i * 2 + 1]);
+      }
+      const troca = atual; atual = proximo; proximo = troca;
+    }
+
+    const saida = new Array(n + 1);
+    for (let i = 0; i < n; i++) saida[i] = [atual[i * 2], atual[i * 2 + 1]];
+    saida[n] = [atual[0], atual[1]];
+    return saida;
+  }
+
+  return aneis.map((anel) => ({
+    contorno: suavizarAnel(anel.contorno),
+    furos: anel.furos.map(suavizarAnel),
+  }));
+}
+
+// Redistribui os pontos do contorno em espaçamento uniforme.
+// Pontos irregulares deixam as faces laterais com larguras diferentes e a luz
+// bate diferente em cada uma, o que aparece como estrias. Com espaçamento
+// uniforme as faces ficam iguais e a lateral fica lisa.
+export function reamostrar(aneis, passo) {
+  function reamostrarAnel(pts) {
+    if (pts.length < 5) return pts;
+    let p = pts;
+    const a = p[0], z = p[p.length - 1];
+    if (Math.hypot(a[0] - z[0], a[1] - z[1]) < 1e-7) p = p.slice(0, -1);
+    const n = p.length;
+    if (n < 5) return pts;
+
+    const comp = new Float64Array(n);
+    let total = 0;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      comp[i] = Math.hypot(p[j][0] - p[i][0], p[j][1] - p[i][1]);
+      total += comp[i];
+    }
+    if (total < passo * 4) return pts;
+
+    const quantos = Math.max(8, Math.round(total / passo));
+    const salto = total / quantos;
+
+    const saida = new Array(quantos + 1);
+    let seg = 0, andado = 0;
+    for (let k = 0; k < quantos; k++) {
+      const alvo = k * salto;
+      while (seg < n - 1 && andado + comp[seg] < alvo) { andado += comp[seg]; seg++; }
+      const t = comp[seg] > 1e-12 ? (alvo - andado) / comp[seg] : 0;
+      const j = (seg + 1) % n;
+      saida[k] = [
+        p[seg][0] + (p[j][0] - p[seg][0]) * t,
+        p[seg][1] + (p[j][1] - p[seg][1]) * t,
+      ];
+    }
+    saida[quantos] = [saida[0][0], saida[0][1]];
+    return saida;
+  }
+
+  return aneis.map((anel) => ({
+    contorno: reamostrarAnel(anel.contorno),
+    furos: anel.furos.map(reamostrarAnel),
+  }));
+}
+
+// Limpeza final: tira pontos repetidos (que viram triângulos sem área) e
+// descarta anéis pequenos demais para virar geometria de verdade.
+export function limparAneis(aneis, minimo = 0.01, areaMinima = 0.02) {
+  function limpar(pts) {
+    if (!pts || pts.length < 4) return null;
+    const saida = [];
+    for (const p of pts) {
+      const ultimo = saida[saida.length - 1];
+      if (!ultimo || Math.hypot(p[0] - ultimo[0], p[1] - ultimo[1]) > minimo) saida.push(p);
+    }
+    // fecha o anel sem repetir o ponto
+    while (saida.length > 1 &&
+           Math.hypot(saida[0][0] - saida[saida.length - 1][0],
+                      saida[0][1] - saida[saida.length - 1][1]) <= minimo) saida.pop();
+    if (saida.length < 3) return null;
+    let a = 0;
+    for (let i = 0, j = saida.length - 1; i < saida.length; j = i++) {
+      a += saida[j][0] * saida[i][1] - saida[i][0] * saida[j][1];
+    }
+    if (Math.abs(a / 2) < areaMinima) return null;
+    saida.push([saida[0][0], saida[0][1]]);
+    return saida;
+  }
+
+  const saida = [];
+  for (const anel of aneis) {
+    const contorno = limpar(anel.contorno);
+    if (!contorno) continue;
+    const furos = [];
+    for (const h of anel.furos) {
+      const f = limpar(h);
+      if (f) furos.push(f);
+    }
+    saida.push({ contorno, furos });
+  }
+  return saida;
+}

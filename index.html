@@ -205,14 +205,47 @@
 }
 </script>
 <script>
-  // Rede de segurança: se o aplicativo não iniciar, mostra um recado em vez de tela morta.
+  // Rede de segurança: se o aplicativo não iniciar, mostra um recado em vez de
+  // tela morta — e, quando o motivo for arquivo faltando (o erro mais comum ao
+  // publicar), diz EXATAMENTE qual pasta não subiu.
   window.__vivo = false;
-  setTimeout(function () {
-    if (!window.__vivo) {
-      var r = document.getElementById('recado-travou');
-      if (r) r.hidden = false;
-    }
-  }, 10000);
+
+  function recadoDeFalha(texto) {
+    var r = document.getElementById('recado-travou');
+    if (!r) return;
+    r.innerHTML = texto;
+    r.hidden = false;
+  }
+
+  function conferirArquivos() {
+    var precisa = [
+      ['./vendor/three.module.min.js', 'vendor'],
+      ['./fontes/letra-firme.typeface.json', 'fontes']
+    ];
+    Promise.all(precisa.map(function (par) {
+      return fetch(par[0], { method: 'HEAD', cache: 'no-store' })
+        .then(function (r) { return r.ok ? null : par[1]; })
+        .catch(function () { return par[1]; });
+    })).then(function (faltando) {
+      var pastas = faltando.filter(Boolean);
+      if (pastas.length) {
+        recadoDeFalha(
+          'Faltou enviar ' +
+          (pastas.length === 1 ? 'a pasta <b>' + pastas[0] + '</b>' : 'as pastas <b>' + pastas.join('</b> e <b>') + '</b>') +
+          ' para o site.<br>O endereço está no ar, mas sem ' +
+          (pastas.length === 1 ? 'essa pasta' : 'essas pastas') +
+          ' o chaveiro não consegue ser montado.'
+        );
+      } else {
+        recadoDeFalha('O site travou ao abrir. Feche a aba e abra de novo.');
+      }
+    });
+  }
+
+  setTimeout(function () { if (!window.__vivo) conferirArquivos(); }, 6000);
+  window.addEventListener('error', function (e) {
+    if (!window.__vivo && e && e.target && e.target.tagName === 'SCRIPT') conferirArquivos();
+  }, true);
   // aplica o tema salvo antes de pintar, para não piscar branco
   try {
     var t = localStorage.getItem('chaveiros-tema');
