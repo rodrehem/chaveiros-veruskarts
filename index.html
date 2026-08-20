@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="claro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gerador de Chaveiros</title>
+  <meta name="description" content="Escreva um nome, veja o chaveiro em 3D e baixe o arquivo para imprimir.">
+  <meta name="theme-color" content="#0f1420">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icone-192.png">
+  <link rel="apple-touch-icon" href="./icone-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Chaveiros">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<header class="topo">
+  <div class="marca">
+    <svg class="logo" viewBox="0 0 40 24" aria-hidden="true">
+      <circle cx="9" cy="12" r="6.2" fill="none" stroke="currentColor" stroke-width="2.6"/>
+      <rect x="13" y="6" width="25" height="12" rx="3.2" fill="currentColor"/>
+    </svg>
+    <div>
+      <h1>Gerador de Chaveiros</h1>
+      <p class="subtitulo">Escreva um nome e baixe o arquivo para imprimir em 3D</p>
+    </div>
+  </div>
+  <button type="button" id="tema" class="botao-tema" aria-label="Trocar entre claro e escuro">
+    <span class="icone-claro" aria-hidden="true">☀</span>
+    <span class="icone-escuro" aria-hidden="true">☾</span>
+    <span class="rotulo-tema">Escuro</span>
+  </button>
+</header>
+
+<noscript>
+  <p class="recado-parado">O site não conseguiu abrir neste navegador. Tente abrir de novo.</p>
+</noscript>
+<p class="recado-parado" id="recado-travou" hidden>
+  O site travou ao abrir. Feche a aba e abra de novo.
+</p>
+
+<main class="painel">
+
+  <!-- ============ COLUNA DA ESQUERDA: CONFIGURAÇÃO ============ -->
+  <section class="controles" aria-label="Configuração do chaveiro">
+
+    <div class="campo">
+      <label class="etiqueta" for="nome">Nome</label>
+      <input id="nome" type="text" value="João" maxlength="40" autocomplete="off"
+             autocapitalize="words" spellcheck="false" placeholder="Escreva aqui">
+    </div>
+
+    <div class="campo">
+      <span class="etiqueta" id="rot-estilo">Estilo</span>
+      <div class="grade-opcoes col-2" role="group" aria-labelledby="rot-estilo">
+        <button type="button" class="cartao ativo" data-estilo="retangulo" aria-pressed="true">
+          <svg viewBox="0 0 64 30" aria-hidden="true">
+            <rect x="2" y="6" width="60" height="18" rx="2.5" class="peca"/>
+            <circle cx="10" cy="15" r="3" class="furo"/>
+            <rect x="19" y="12" width="36" height="6" rx="1" class="marca-texto"/>
+          </svg>
+          <span>Retângulo</span>
+        </button>
+        <button type="button" class="cartao" data-estilo="arredondado" aria-pressed="false">
+          <svg viewBox="0 0 64 30" aria-hidden="true">
+            <rect x="2" y="6" width="60" height="18" rx="9" class="peca"/>
+            <circle cx="12" cy="15" r="3" class="furo"/>
+            <rect x="21" y="12" width="34" height="6" rx="1" class="marca-texto"/>
+          </svg>
+          <span>Arredondado</span>
+        </button>
+        <button type="button" class="cartao" data-estilo="sombra" aria-pressed="false">
+          <svg viewBox="0 0 64 30" aria-hidden="true">
+            <path d="M14 6 h10 a5 5 0 0 1 0 18 h-10 a5 5 0 0 1 0-18 z
+                     M30 6 h9 a5 5 0 0 1 0 18 h-9 a5 5 0 0 1 0-18 z
+                     M45 6 h8 a5 5 0 0 1 0 18 h-8 a5 5 0 0 1 0-18 z" class="peca"/>
+            <circle cx="9" cy="15" r="3" class="furo"/>
+            <rect x="17" y="12" width="5" height="6" rx="1" class="marca-texto"/>
+            <rect x="32" y="12" width="5" height="6" rx="1" class="marca-texto"/>
+            <rect x="46" y="12" width="5" height="6" rx="1" class="marca-texto"/>
+          </svg>
+          <span>Sombra</span>
+        </button>
+        <button type="button" class="cartao" data-estilo="letras" aria-pressed="false">
+          <svg viewBox="0 0 64 30" aria-hidden="true">
+            <circle cx="8" cy="15" r="4.6" fill="none" stroke="currentColor" stroke-width="2.4"/>
+            <path d="M14 20 l5-11 l5 11 M15.5 16.5 h6.8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+            <path d="M28 20 v-8 q4-1 4 3 v5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+            <path d="M40 20 v-8 q4-1 4 3 v5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+            <path d="M50 20 v-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+          </svg>
+          <span>Só letras</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="campo">
+      <span class="etiqueta" id="rot-fonte">Letra</span>
+      <div class="grade-opcoes col-2" role="group" aria-labelledby="rot-fonte">
+        <button type="button" class="cartao fonte ativo" data-fonte="firme" aria-pressed="true">
+          <span class="amostra amostra-firme">Ana</span><span>Firme</span>
+        </button>
+        <button type="button" class="cartao fonte" data-fonte="redonda" aria-pressed="false">
+          <span class="amostra amostra-redonda">Ana</span><span>Redonda</span>
+        </button>
+        <button type="button" class="cartao fonte" data-fonte="estreita" aria-pressed="false">
+          <span class="amostra amostra-estreita">Ana</span><span>Estreita</span>
+        </button>
+        <button type="button" class="cartao fonte" data-fonte="cursiva" aria-pressed="false">
+          <span class="amostra amostra-cursiva">Ana</span><span>Cursiva</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="campo">
+      <span class="etiqueta" id="rot-tamanho">Tamanho</span>
+      <div class="grade-opcoes col-3" role="group" aria-labelledby="rot-tamanho">
+        <button type="button" class="cartao compacto" data-tamanho="P" aria-pressed="false"><span>Pequeno</span></button>
+        <button type="button" class="cartao compacto ativo" data-tamanho="M" aria-pressed="true"><span>Médio</span></button>
+        <button type="button" class="cartao compacto" data-tamanho="G" aria-pressed="false"><span>Grande</span></button>
+      </div>
+      <div class="deslizante">
+        <label for="op-tamanho">Altura da letra <output id="val-tamanho">15 mm</output></label>
+        <input type="range" id="op-tamanho" min="6" max="34" step="0.5" value="15">
+      </div>
+    </div>
+
+    <div class="campo">
+      <span class="etiqueta">Tipografia</span>
+      <div class="deslizante">
+        <label for="op-espaco">Espaço entre as letras <output id="val-espaco">0</output></label>
+        <input type="range" id="op-espaco" min="-8" max="30" step="1" value="0">
+      </div>
+      <div class="deslizante">
+        <label for="op-proporcao">Largura das letras <output id="val-proporcao">100%</output></label>
+        <input type="range" id="op-proporcao" min="70" max="140" step="1" value="100">
+      </div>
+      <div class="deslizante" id="linha-borda" hidden>
+        <label for="op-borda">Largura da borda <output id="val-borda">2,5 mm</output></label>
+        <input type="range" id="op-borda" min="1" max="8" step="0.5" value="2.5">
+      </div>
+    </div>
+
+    <div class="campo">
+      <div class="linha-interruptor">
+        <span class="etiqueta sem-margem" id="rot-argola">Furo da argola</span>
+        <button type="button" id="op-furo" class="interruptor" role="switch" aria-checked="true" aria-labelledby="rot-argola">
+          <span class="bolinha"></span>
+        </button>
+      </div>
+      <div class="deslizante" id="linha-furo">
+        <label for="op-diametro">Tamanho do furo <output id="val-diametro">5 mm</output></label>
+        <input type="range" id="op-diametro" min="3" max="9" step="0.5" value="5">
+      </div>
+    </div>
+
+    <details class="avancado">
+      <summary>Espessura da peça</summary>
+      <div class="deslizante">
+        <label for="op-espessura">Espessura da base <output id="val-espessura">3 mm</output></label>
+        <input type="range" id="op-espessura" min="2" max="6" step="0.5" value="3">
+      </div>
+      <div class="deslizante" id="linha-relevo">
+        <label for="op-relevo">Altura das letras em relevo <output id="val-relevo">1 mm</output></label>
+        <input type="range" id="op-relevo" min="0.6" max="2.5" step="0.1" value="1">
+      </div>
+      <button type="button" id="restaurar" class="botao-secundario">Voltar tudo ao normal</button>
+    </details>
+
+  </section>
+
+  <!-- ============ COLUNA DA DIREITA: VISUALIZAÇÃO ============ -->
+  <section class="visor" aria-label="Visualização do chaveiro">
+    <div id="palco" class="palco">
+      <canvas id="tela" aria-label="Desenho do chaveiro em três dimensões"></canvas>
+      <div class="medidas" id="medidas" aria-live="polite"></div>
+      <div class="ferramentas-visor">
+        <button type="button" id="girar" class="botao-visor ativo" aria-pressed="true" title="Girar sozinho">
+          <span aria-hidden="true">⟳</span><span class="so-leitor">Girar sozinho</span>
+        </button>
+        <button type="button" id="centralizar" class="botao-visor" title="Enquadrar de novo">
+          <span aria-hidden="true">⤢</span><span class="so-leitor">Enquadrar de novo</span>
+        </button>
+      </div>
+      <p class="dica" id="dica">Arraste para girar &middot; role para aproximar</p>
+    </div>
+
+    <div class="rodape-visor">
+      <div id="mensagem" class="mensagem" role="status" aria-live="polite"></div>
+      <button id="baixar" class="botao-baixar" type="button">
+        <span aria-hidden="true">↓</span> Baixar arquivo para imprimir
+      </button>
+    </div>
+  </section>
+
+</main>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.min.js",
+    "three/addons/": "./vendor/addons/"
+  }
+}
+</script>
+<script>
+  // Rede de segurança: se o aplicativo não iniciar, mostra um recado em vez de tela morta.
+  window.__vivo = false;
+  setTimeout(function () {
+    if (!window.__vivo) {
+      var r = document.getElementById('recado-travou');
+      if (r) r.hidden = false;
+    }
+  }, 10000);
+  // aplica o tema salvo antes de pintar, para não piscar branco
+  try {
+    var t = localStorage.getItem('chaveiros-tema');
+    if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro';
+    document.documentElement.setAttribute('data-tema', t);
+  } catch (e) {}
+</script>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

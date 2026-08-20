@@ -1,0 +1,25 @@
+Gerador de Chaveiros — componentes de terceiros
+================================================
+
+three.js (biblioteca 3D)
+  Copyright (c) 2010-2025 three.js authors
+  Licença MIT — texto completo em vendor/LICENCA-three.js.txt
+  Arquivos: vendor/three.module.min.js, vendor/three.core.min.js, vendor/addons/**
+
+As quatro fontes abaixo estão sob a SIL Open Font License 1.1. Elas foram
+convertidas do TTF original para o formato que o three.js lê; nenhum glifo foi
+alterado. A OFL permite redistribuir e converter, desde que o aviso de copyright
+e a licença acompanhem os arquivos — é o que estes arquivos fazem. Nenhuma delas
+é vendida separadamente nem usa o nome reservado original como nome comercial.
+
+  "Firme"    Archivo Black  — Copyright (c) Omnibus-Type
+             fontes/LICENCA-Archivo-Black.txt  ->  fontes/letra-firme.typeface.json
+
+  "Redonda"  Titan One      — Copyright (c) Juan Montoreano, Ruda Studio
+             fontes/LICENCA-Titan-One.txt      ->  fontes/letra-redonda.typeface.json
+
+  "Estreita" Lilita One     — Copyright (c) Juan Montoreano, Ruda Studio
+             fontes/LICENCA-Lilita-One.txt     ->  fontes/letra-estreita.typeface.json
+
+  "Cursiva"  Pacifico       — Copyright (c) Vernon Adams, Jacques Le Bailly
+             fontes/LICENCA-Pacifico.txt       ->  fontes/letra-cursiva.typeface.json
