@@ -136,6 +136,10 @@
         <label for="op-proporcao">Largura das letras <output id="val-proporcao">100%</output></label>
         <input type="range" id="op-proporcao" min="70" max="140" step="1" value="100">
       </div>
+      <div class="deslizante">
+        <label for="op-traco">Espessura do traço <output id="val-traco">normal</output></label>
+        <input type="range" id="op-traco" min="-4" max="15" step="1" value="0">
+      </div>
       <div class="deslizante" id="linha-borda" hidden>
         <label for="op-borda">Largura da borda <output id="val-borda">2,5 mm</output></label>
         <input type="range" id="op-borda" min="1" max="8" step="0.5" value="2.5">
@@ -158,7 +162,7 @@
     <details class="avancado">
       <summary>Espessura da peça</summary>
       <div class="deslizante">
-        <label for="op-espessura">Espessura da base <output id="val-espessura">3 mm</output></label>
+        <label for="op-espessura"><span id="rot-espessura">Espessura da base</span> <output id="val-espessura">3 mm</output></label>
         <input type="range" id="op-espessura" min="2" max="6" step="0.5" value="3">
       </div>
       <div class="deslizante" id="linha-relevo">

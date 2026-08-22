@@ -25,6 +25,7 @@ const PADRAO = {
   espaco: 0,
   proporcao: 100,
   borda: 2.5,
+  traco: 0,
   comFuro: true,
   diametroFuro: 5,
   espessura: 3,
@@ -211,6 +212,7 @@ function reconstruir() {
       tamanhoLetra: estado.tamanhoLetra,
       espaco: estado.espaco / 100,
       proporcao: estado.proporcao / 100,
+      espessuraTraco: estado.traco / 10,
       espessuraBase: estado.espessura,
       alturaLetra: estado.relevo,
       comFuro: estado.comFuro,
@@ -292,7 +294,10 @@ grupoBotoes('.grade-opcoes[aria-labelledby="rot-tamanho"]', 'tamanho', (v) => {
 function visibilidadePorEstilo() {
   $('#linha-borda').hidden = estado.estilo !== 'sombra';
   // o relevo só existe onde há placa por baixo do texto
-  $('#linha-relevo').hidden = estado.estilo === 'letras';
+  const soLetras = estado.estilo === 'letras';
+  $('#linha-relevo').hidden = soLetras;
+  // no só-letras não existe "base": a espessura é a da peça inteira
+  $('#rot-espessura').textContent = soLetras ? 'Espessura da peça' : 'Espessura da base';
 }
 
 function marcarTamanhoPreset() {
@@ -324,6 +329,8 @@ ligarDeslizante('#op-espaco', '#val-espaco', (v) => { estado.espaco = v; },
   (v) => (v > 0 ? `+${v}` : `${v}`));
 ligarDeslizante('#op-proporcao', '#val-proporcao', (v) => { estado.proporcao = v; },
   (v) => `${v}%`);
+ligarDeslizante('#op-traco', '#val-traco', (v) => { estado.traco = v; },
+  (v) => (v === 0 ? 'normal' : (v > 0 ? '+' : '') + (v / 10).toString().replace('.', ',') + ' mm'));
 ligarDeslizante('#op-borda', '#val-borda', (v) => { estado.borda = v; }, mm);
 ligarDeslizante('#op-diametro', '#val-diametro', (v) => { estado.diametroFuro = v; }, mm);
 ligarDeslizante('#op-espessura', '#val-espessura', (v) => { estado.espessura = v; }, mm);
@@ -341,6 +348,7 @@ $('#restaurar').addEventListener('click', () => {
   $('#op-tamanho').value = PADRAO.tamanhoLetra; $('#val-tamanho').textContent = mm(PADRAO.tamanhoLetra);
   $('#op-espaco').value = PADRAO.espaco; $('#val-espaco').textContent = '0';
   $('#op-proporcao').value = PADRAO.proporcao; $('#val-proporcao').textContent = '100%';
+  $('#op-traco').value = PADRAO.traco; $('#val-traco').textContent = 'normal';
   $('#op-borda').value = PADRAO.borda; $('#val-borda').textContent = mm(PADRAO.borda);
   $('#op-diametro').value = PADRAO.diametroFuro; $('#val-diametro').textContent = mm(PADRAO.diametroFuro);
   $('#op-espessura').value = PADRAO.espessura; $('#val-espessura').textContent = mm(PADRAO.espessura);

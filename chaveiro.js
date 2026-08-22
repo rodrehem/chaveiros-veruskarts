@@ -7,7 +7,7 @@ import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import {
   bandaDaFonte, tamanhoMinimoDaFonte, poligonosDoTexto, caixaDosAneis, moverAneis,
   aneisParaShapes, criarGrade, pintarAneis, pintarDisco, campoDistancia,
-  binarioDoCampo, contarPedacos, contornar, simplificar, ligarPedacos, suavizar, reamostrar, limparAneis,
+  binarioDoCampo, contarPedacos, contornar, simplificar, ligarPedacos, suavizar, reamostrar, limparAneis, engrossarAneis,
 } from './forma.js';
 
 // ---------- Regras de impressão (fixas) ----------
@@ -181,12 +181,14 @@ function montarNaGrade(op) {
       mapa = binarioDoCampo(sdfTexto, bordaUsada);
     }
   } else {
-    // Solda: engorda e volta ao tamanho, para juntar letras que quase se
-    // encostam sem mudar a forma delas. O primeiro passo reaproveita o campo de
-    // distancia do texto, que ja foi calculado acima.
-    const solda = 0.45;
-    const gordo = binarioDoCampo(sdfTexto, solda);
-    mapa = binarioDoCampo(campoDistancia(gordo, grade), -solda);
+    // So letras: o desenho e o proprio traco, sem engordar nada.
+    //
+    // Aqui havia uma soldadura (engordar e voltar) para juntar letras que quase
+    // se encostam. Ela foi removida: engordar 0,45 mm fecha qualquer vao menor
+    // que 0,9 mm, e o miolo do "a" da fonte estreita tem 1,14 mm no tamanho
+    // medio e menos de 0,9 mm no pequeno — ou seja, a solda tapava o buraco da
+    // letra. As pontes abaixo dao conta de unir a peca sem esse efeito colateral.
+    mapa = mapaTexto;
   }
 
   // Pontes finas: grudam til, pingo do "i", cedilha e letras vizinhas.
@@ -227,10 +229,11 @@ function montarNaGrade(op) {
   aneis = reamostrar(aneis, Math.min(0.7, Math.max(0.28, maior / 420)));
   aneis = suavizar(aneis, 4);
   // Descarta furinhos sem sentido fisico: o encontro de uma ponte com a letra
-  // as vezes deixa um furo de decimo de milimetro, menor que o bico da
-  // impressora. Nao imprime nem como furo e so aparece como sujeira. O menor
-  // furo legitimo (o miolo de uma letra pequena) tem alguns mm2, bem acima disto.
-  aneis = limparAneis(aneis, Math.max(0.008, celula * 0.06), 0.6);
+  // as vezes deixa um furo de decimo de milimetro. O criterio e o bico da
+  // impressora: um furo de 0,4 mm de diametro tem 0,126 mm2, e abaixo disso nao
+  // ha o que imprimir. O menor miolo de letra legitimo (o "e" da fonte estreita
+  // no tamanho minimo dela) tem 0,29 mm2, com folga de duas vezes para cima.
+  aneis = limparAneis(aneis, Math.max(0.008, celula * 0.06), 0.126);
 
   const caixaPeca = caixaDosAneis(aneis);
   const formasBase = aneisParaShapes(aneis);
@@ -259,6 +262,7 @@ export function montarChaveiro(opcoes) {
     espessuraBase = 3, alturaLetra = 1,
     comFuro = true, diametroFuro = 5,
     borda = 2.5,
+    espessuraTraco = 0,
   } = opcoes;
 
   const avisos = [];
@@ -269,7 +273,7 @@ export function montarChaveiro(opcoes) {
   const minimoFonte = tamanhoMinimoDaFonte(fonte);
   let tamanho = Math.max(tamanhoLetra, minimoFonte);
   if (tamanhoLetra < minimoFonte - 0.05) {
-    avisos.push('Nesta letra o traço ficaria fino demais para imprimir, então ela não diminui mais.');
+    avisos.push('Esta letra não fica menor que ' + minimoFonte.toString().replace('.', ',') + ' mm, senão o traço não sai na impressão.');
   }
 
   const banda = bandaDaFonte(fonte);
@@ -277,7 +281,21 @@ export function montarChaveiro(opcoes) {
   // poligono visivel de perto; escala com o tamanho para o lado de cada faceta
   // ficar sempre bem abaixo de meio milimetro.
   const curvasLetra = Math.max(10, Math.min(24, Math.round(tamanho * 1.15)));
-  const aneisTexto0 = poligonosDoTexto(fonte, nomeUsado, tamanho, espaco, proporcao, curvasLetra);
+  let aneisTexto0 = poligonosDoTexto(fonte, nomeUsado, tamanho, espaco, proporcao, curvasLetra);
+
+  // Engrossar ou afinar o traco. Afinar tem limite: o traco nunca pode ficar
+  // abaixo de 1,2 mm, senao nao imprime. Como o afinamento come dos dois lados,
+  // o quanto disponivel e metade da sobra que a fonte tem acima desse minimo.
+  let traco = espessuraTraco;
+  if (traco < 0) {
+    const hasteMM = (fonte.data.haste_em || 0.15) * tamanho;
+    const limite = -Math.max(0, (hasteMM - 1.2) / 2);
+    if (traco < limite) {
+      traco = limite;
+      avisos.push('Nesta letra o traço não pode afinar mais sem ficar fino demais para imprimir.');
+    }
+  }
+  if (Math.abs(traco) >= 0.005) aneisTexto0 = engrossarAneis(aneisTexto0, traco);
   const temTexto = aneisTexto0.length > 0;
 
   const grupo = new THREE.Group();
@@ -307,6 +325,11 @@ export function montarChaveiro(opcoes) {
     avisos.push(r.pontes === 1
       ? 'Liguei uma parte solta com uma pontinha, para sair tudo em uma peça só.'
       : 'Liguei ' + r.pontes + ' partes soltas com pontinhas, para sair tudo em uma peça só.');
+    // Muitas pontes deixam a peca com cara de remendada. Nesse caso engrossar o
+    // traco costuma juntar as letras sozinho, sem ponte nenhuma.
+    if (r.pontes >= 5) {
+      avisos.push('Ficaram muitas pontinhas. Aumente a Espessura do traço para as letras se juntarem sozinhas.');
+    }
   }
   if (r.bordaUsada > borda + 0.01) {
     avisos.push('Aumentei um pouco a borda para a peça não ficar partida.');

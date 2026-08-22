@@ -550,7 +550,12 @@ export function ligarPedacos(binario, grade, larguraPonte) {
   let mapa = binario;
   let pontes = 0;
 
-  for (let volta = 0; volta < 6; volta++) {
+  // Cada volta liga ao corpo principal apenas os pedaços que já estão PERTO
+  // dele, e só então recomeça. Ligar tudo de uma vez faria a última letra de um
+  // nome se ligar direto à primeira, com uma ponte atravessando a palavra
+  // inteira por cima das outras letras. Assim as letras se juntam com as
+  // vizinhas, e cada ponte fica curta.
+  for (let volta = 0; volta < 20; volta++) {
     const { rotulos, quantos, bordas } = rotularPedacos(mapa, grade);
     if (quantos <= 1) break;
 
@@ -567,15 +572,26 @@ export function ligarPedacos(binario, grade, larguraPonte) {
 
     if (mapa === binario) mapa = Uint8Array.from(binario);
 
+    // ponto de encosto e distância de cada pedaço até o corpo principal
+    const candidatos = [];
+    let maisPerto = Infinity;
     for (let k = 0; k < bordas.length; k++) {
       if (k === principal || !bordas[k].length) continue;
-
-      // o ponto do pedaço que está mais perto do corpo principal
       let alvo = -1, menor = Infinity;
       for (const p of bordas[k]) {
         if (dist[p] < menor) { menor = dist[p]; alvo = p; }
       }
       if (alvo < 0) continue;
+      candidatos.push({ alvo, menor });
+      if (menor < maisPerto) maisPerto = menor;
+    }
+    if (!candidatos.length) break;
+
+    // só os que estão na mesma faixa de proximidade do mais próximo
+    const limite = maisPerto * 1.5 + 0.5;
+
+    for (const { alvo, menor } of candidatos) {
+      if (menor > limite) continue;
 
       const ax = emX(alvo), ay = emY(alvo);
 
@@ -734,4 +750,28 @@ export function limparAneis(aneis, minimo = 0.01, areaMinima = 0.02) {
     saida.push({ contorno, furos });
   }
   return saida;
+}
+
+// ---------- engrossar ou afinar o traço ----------
+//
+// Engorda (ou afina) o desenho das letras por uma distância em milímetros.
+// Serve para deixar uma fonte fina imprimível sem mudar de fonte, e para dar
+// mais corpo à peça no estilo só-letras.
+export function engrossarAneis(aneis, quanto) {
+  if (!aneis.length || Math.abs(quanto) < 0.005) return aneis;
+
+  const caixa = caixaDosAneis(aneis);
+  const folga = Math.abs(quanto) + 2;
+  const maior = Math.max(caixa.largura, caixa.altura) + folga * 2;
+  const celula = Math.min(0.3, Math.max(0.08, maior / 1300));
+  const grade = criarGrade(caixa, folga, celula);
+
+  const mapa = pintarAneis(aneis, grade);
+  const novo = binarioDoCampo(campoDistancia(mapa, grade), quanto);
+
+  let saida = contornar(campoDistancia(novo, grade), grade, 0);
+  saida = suavizar(saida, 10);
+  saida = reamostrar(saida, Math.min(0.6, Math.max(0.25, maior / 460)));
+  saida = suavizar(saida, 4);
+  return limparAneis(saida, Math.max(0.008, celula * 0.06), 0.126);
 }
