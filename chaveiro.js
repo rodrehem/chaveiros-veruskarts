@@ -7,7 +7,7 @@ import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import {
   bandaDaFonte, tamanhoMinimoDaFonte, poligonosDoTexto, caixaDosAneis, moverAneis,
   aneisParaShapes, criarGrade, pintarAneis, pintarDisco, campoDistancia,
-  binarioDoCampo, soldar, contarPedacos, contornar, simplificar, ligarPedacos, suavizar, reamostrar, limparAneis,
+  binarioDoCampo, contarPedacos, contornar, simplificar, ligarPedacos, suavizar, reamostrar, limparAneis,
 } from './forma.js';
 
 // ---------- Regras de impressão (fixas) ----------
@@ -23,9 +23,15 @@ export const TAMANHOS = { P: 11, M: 15, G: 20 }; // altura da letra, em mm
 const carregadorFonte = new FontLoader();
 const exportador = new STLExporter();
 
+// Visualizacao flat: sem luz, sem sombra, sem brilho. O ExtrudeGeometry separa
+// a malha em dois grupos (tampas e laterais), entao basta dar uma cor plana para
+// cada um — a lateral um pouco mais escura — e a profundidade continua legivel
+// sem nenhum calculo de iluminacao.
 export const materiais = {
-  base: new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.42, metalness: 0.03 }),
-  letra: new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.5, metalness: 0.0 }),
+  baseTopo: new THREE.MeshBasicMaterial({ color: 0x2563eb }),
+  baseLado: new THREE.MeshBasicMaterial({ color: 0x1c4fd1 }),
+  letraTopo: new THREE.MeshBasicMaterial({ color: 0xfff7e6 }),
+  letraLado: new THREE.MeshBasicMaterial({ color: 0xe3d5b6 }),
 };
 
 export function criarFonte(json) {
@@ -154,7 +160,11 @@ function montarNaGrade(op) {
 
   const folga = bordaTeto + (comFuro ? raioAnel * 2.4 : 0) + 3;
   const maior = Math.max(caixa.largura, caixa.altura) + folga * 2;
-  const celula = Math.min(0.34, Math.max(0.11, maior / 1100));
+  // No estilo sombra o contorno sai a 2,5 mm do traco, onde a ondulacao da grade
+  // pesa pouco. No so-letras o contorno E o traco, o caso mais exigente, entao a
+  // grade ali precisa ser mais fina.
+  const piso = ehSombra ? 0.11 : 0.085;
+  const celula = Math.min(0.34, Math.max(piso, maior / 1300));
   const grade = criarGrade(caixa, folga, celula);
 
   const mapaTexto = pintarAneis(aneisTexto, grade);
@@ -171,7 +181,12 @@ function montarNaGrade(op) {
       mapa = binarioDoCampo(sdfTexto, bordaUsada);
     }
   } else {
-    mapa = soldar(mapaTexto, grade, 0.45);
+    // Solda: engorda e volta ao tamanho, para juntar letras que quase se
+    // encostam sem mudar a forma delas. O primeiro passo reaproveita o campo de
+    // distancia do texto, que ja foi calculado acima.
+    const solda = 0.45;
+    const gordo = binarioDoCampo(sdfTexto, solda);
+    mapa = binarioDoCampo(campoDistancia(gordo, grade), -solda);
   }
 
   // Pontes finas: grudam til, pingo do "i", cedilha e letras vizinhas.
@@ -211,7 +226,11 @@ function montarNaGrade(op) {
   aneis = suavizar(aneis, 12);
   aneis = reamostrar(aneis, Math.min(0.7, Math.max(0.28, maior / 420)));
   aneis = suavizar(aneis, 4);
-  aneis = limparAneis(aneis, Math.max(0.008, celula * 0.06));
+  // Descarta furinhos sem sentido fisico: o encontro de uma ponte com a letra
+  // as vezes deixa um furo de decimo de milimetro, menor que o bico da
+  // impressora. Nao imprime nem como furo e so aparece como sujeira. O menor
+  // furo legitimo (o miolo de uma letra pequena) tem alguns mm2, bem acima disto.
+  aneis = limparAneis(aneis, Math.max(0.008, celula * 0.06), 0.6);
 
   const caixaPeca = caixaDosAneis(aneis);
   const formasBase = aneisParaShapes(aneis);
@@ -254,7 +273,11 @@ export function montarChaveiro(opcoes) {
   }
 
   const banda = bandaDaFonte(fonte);
-  const aneisTexto0 = poligonosDoTexto(fonte, nomeUsado, tamanho, espaco, proporcao);
+  // Divisoes por curva do glifo. Com poucas divisoes a curva da letra vira um
+  // poligono visivel de perto; escala com o tamanho para o lado de cada faceta
+  // ficar sempre bem abaixo de meio milimetro.
+  const curvasLetra = Math.max(10, Math.min(24, Math.round(tamanho * 1.15)));
+  const aneisTexto0 = poligonosDoTexto(fonte, nomeUsado, tamanho, espaco, proporcao, curvasLetra);
   const temTexto = aneisTexto0.length > 0;
 
   const grupo = new THREE.Group();
@@ -301,7 +324,7 @@ export function montarChaveiro(opcoes) {
     depth: alturaBase, bevelEnabled: false, curveSegments: r.curvasBase,
   });
   geoBase.translate(dx - r.largura / 2, dy - r.altura / 2, 0);
-  grupo.add(new THREE.Mesh(geoBase, materiais.base));
+  grupo.add(new THREE.Mesh(geoBase, [materiais.baseTopo, materiais.baseLado]));
 
   // ---- texto em relevo (nos estilos que têm placa por baixo) ----
   if (r.textoEmRelevo) {
@@ -313,7 +336,7 @@ export function montarChaveiro(opcoes) {
         depth: alturaLetra + AFUNDAR, bevelEnabled: false, curveSegments: 1,
       });
       geoTexto.translate(dx - r.largura / 2, dy - r.altura / 2, espessuraBase - AFUNDAR);
-      grupo.add(new THREE.Mesh(geoTexto, materiais.letra));
+      grupo.add(new THREE.Mesh(geoTexto, [materiais.letraTopo, materiais.letraLado]));
     }
   }
 

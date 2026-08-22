@@ -39,9 +39,23 @@ let avisoFixo = '';
 
 // ---------------- tema ----------------
 const CORES_TEMA = {
-  claro: { fundo: 0xe8edf5, grade: 0xc2ccdb, gradeEixo: 0xa9b6c9, base: 0x2563eb, letra: 0xfff7e6 },
-  escuro: { fundo: 0x0b1119, grade: 0x263149, gradeEixo: 0x36456180, base: 0x4f8cff, letra: 0xffedc4 },
+  claro: {
+    fundo: 0xeef2f8, grade: 0xccd5e2, gradeEixo: 0xb3bfd0,
+    base: 0x2563eb, letra: 0xfff4dd,
+  },
+  escuro: {
+    fundo: 0x0b1119, grade: 0x24304a, gradeEixo: 0x33425f,
+    base: 0x4f8cff, letra: 0xffeec8,
+  },
 };
+
+// Escurece uma cor por um fator — e assim que a lateral da peca ganha um tom
+// proprio sem depender de iluminacao.
+function escurecer(hex, fator) {
+  const c = new THREE.Color(hex);
+  c.multiplyScalar(fator);
+  return c;
+}
 
 function temaAtual() {
   return document.documentElement.getAttribute('data-tema') === 'escuro' ? 'escuro' : 'claro';
@@ -64,50 +78,14 @@ $('#tema').addEventListener('click', () => {
 const tela = $('#tela');
 const renderer = new THREE.WebGLRenderer({ canvas: tela, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled = false;
 
 const cena = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(36, 1, 0.5, 4000);
 camera.up.set(0, 0, 1);
 camera.position.set(0, -110, 78);
 
-const luzAmbiente = new THREE.HemisphereLight(0xffffff, 0x6d7a90, 1.05);
-const luzPrincipal = new THREE.DirectionalLight(0xffffff, 2.3);
-luzPrincipal.position.set(55, -70, 120);
-const luzApoio = new THREE.DirectionalLight(0xdce9ff, 0.85);
-luzApoio.position.set(-70, 55, 40);
-luzPrincipal.castShadow = true;
-luzPrincipal.shadow.mapSize.set(2048, 2048);
-luzPrincipal.shadow.camera.near = 1;
-luzPrincipal.shadow.camera.far = 2000;
-luzPrincipal.shadow.bias = -0.0003;
-luzPrincipal.shadow.normalBias = 0.12;
-
-// A camera de sombra de uma luz direcional nasce com uma caixa de +-5 unidades.
-// Como a peca tem dezenas de milimetros, ela precisa ser reenquadrada a cada
-// mudanca de tamanho, senao a sombra sai cortada e mancha a peca.
-function ajustarSombra(tamanho) {
-  // enquadra a PECA, nao a grade: quanto mais justo, mais nitida fica a sombra
-  const alcance = Math.max(22, tamanho * 0.62);
-  const c = luzPrincipal.shadow.camera;
-  c.left = -alcance; c.right = alcance;
-  c.top = alcance; c.bottom = -alcance;
-  c.updateProjectionMatrix();
-  const d = Math.max(90, tamanho * 1.6);
-  luzPrincipal.position.set(d * 0.42, -d * 0.55, d);
-  luzApoio.position.set(-d * 0.5, d * 0.4, d * 0.3);
-}
-cena.add(luzAmbiente, luzPrincipal, luzApoio);
-
-// chão que recebe a sombra + grade
-const chao = new THREE.Mesh(
-  new THREE.PlaneGeometry(1, 1),
-  new THREE.ShadowMaterial({ opacity: 0.17 })
-);
-chao.receiveShadow = true;
-chao.position.z = -0.02;
-cena.add(chao);
+// Sem luzes: os materiais sao MeshBasicMaterial (cor plana, nao reagem a luz).
 
 let grade = null;
 function construirGrade(tamanho) {
@@ -122,20 +100,17 @@ function construirGrade(tamanho) {
   grade.material.transparent = true;
   grade.material.opacity = temaAtual() === 'escuro' ? 0.5 : 0.65;
   cena.add(grade);
-  chao.geometry.dispose();
-  chao.geometry = new THREE.PlaneGeometry(lado * 1.4, lado * 1.4);
 }
 
 function pintarCena() {
   const c = CORES_TEMA[temaAtual()];
   cena.background = new THREE.Color(c.fundo);
-  materiais.base.color.setHex(c.base);
-  materiais.letra.color.setHex(c.letra);
-  luzAmbiente.intensity = temaAtual() === 'escuro' ? 0.75 : 1.05;
-  chao.material.opacity = temaAtual() === 'escuro' ? 0.32 : 0.17;
+  materiais.baseTopo.color.setHex(c.base);
+  materiais.baseLado.color.copy(escurecer(c.base, 0.7));
+  materiais.letraTopo.color.setHex(c.letra);
+  materiais.letraLado.color.copy(escurecer(c.letra, 0.82));
   const tam = resultadoAtual ? Math.max(resultadoAtual.largura, resultadoAtual.altura) : 60;
   construirGrade(Math.max(50, tam * 1.9));
-  ajustarSombra(tam);
 }
 
 const controles = new OrbitControls(camera, tela);
@@ -246,12 +221,9 @@ function reconstruir() {
     if (grupoAtual) { cena.remove(grupoAtual); descartarGrupo(grupoAtual); }
     grupoAtual = r.grupo;
     resultadoAtual = r;
-    grupoAtual.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     cena.add(grupoAtual);
 
-    const medida = Math.max(r.largura, r.altura);
-    construirGrade(Math.max(50, medida * 1.9));
-    ajustarSombra(medida);
+    construirGrade(Math.max(50, Math.max(r.largura, r.altura) * 1.9));
     enquadrar();
 
     const botao = $('#baixar');

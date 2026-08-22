@@ -536,41 +536,71 @@ export function rotularPedacos(binario, grade) {
 // Liga os pedaços soltos com pontes finas no ponto mais próximo entre eles.
 // É isso que gruda o til, o pingo do "i" e a cedilha no resto da peça, e o que
 // junta letras vizinhas no estilo só-letras.
+//
+// Em vez de comparar cada pedaço com o corpo principal ponto a ponto (o que
+// para um nome longo em só-letras chega a trinta pedaços e fica pesado), mede
+// UMA vez a distância de tudo até o corpo principal e usa esse mapa para achar
+// onde cada pedaço encosta. Assim todas as pontes saem de uma passada só.
 export function ligarPedacos(binario, grade, larguraPonte) {
-  const { larg, celula, x0, y0 } = grade;
+  const { larg, alt, celula, x0, y0 } = grade;
   const raio = Math.max(larguraPonte / 2, celula);
+  const emX = (p) => x0 + ((p % larg) + 0.5) * celula;
+  const emY = (p) => y0 + (((p / larg) | 0) + 0.5) * celula;
+
   let mapa = binario;
   let pontes = 0;
 
-  for (let volta = 0; volta < 80; volta++) {
-    const { quantos, bordas } = rotularPedacos(mapa, grade);
+  for (let volta = 0; volta < 6; volta++) {
+    const { rotulos, quantos, bordas } = rotularPedacos(mapa, grade);
     if (quantos <= 1) break;
 
     // o maior pedaço é o corpo principal
     let principal = 0;
-    for (let k = 1; k < bordas.length; k++) if (bordas[k].length > bordas[principal].length) principal = k;
-
-    // entre os outros, acha o que tem o ponto mais próximo do corpo principal
-    const alvo = bordas[principal];
-    let melhor = null;
-    for (let k = 0; k < bordas.length; k++) {
-      if (k === principal) continue;
-      for (const p of bordas[k]) {
-        const px = x0 + ((p % larg) + 0.5) * celula;
-        const py = y0 + (((p / larg) | 0) + 0.5) * celula;
-        for (const q of alvo) {
-          const qx = x0 + ((q % larg) + 0.5) * celula;
-          const qy = y0 + (((q / larg) | 0) + 0.5) * celula;
-          const d = (px - qx) * (px - qx) + (py - qy) * (py - qy);
-          if (!melhor || d < melhor.d) melhor = { d, px, py, qx, qy };
-        }
-      }
+    for (let k = 1; k < bordas.length; k++) {
+      if (bordas[k].length > bordas[principal].length) principal = k;
     }
-    if (!melhor) break;
+
+    // distância de cada célula até o corpo principal
+    const soPrincipal = new Uint8Array(mapa.length);
+    for (let i = 0; i < mapa.length; i++) if (rotulos[i] === principal) soPrincipal[i] = 1;
+    const dist = campoDistancia(soPrincipal, grade);
 
     if (mapa === binario) mapa = Uint8Array.from(binario);
-    pintarCapsula(mapa, grade, melhor.px, melhor.py, melhor.qx, melhor.qy, raio, 1);
-    pontes++;
+
+    for (let k = 0; k < bordas.length; k++) {
+      if (k === principal || !bordas[k].length) continue;
+
+      // o ponto do pedaço que está mais perto do corpo principal
+      let alvo = -1, menor = Infinity;
+      for (const p of bordas[k]) {
+        if (dist[p] < menor) { menor = dist[p]; alvo = p; }
+      }
+      if (alvo < 0) continue;
+
+      const ax = emX(alvo), ay = emY(alvo);
+
+      // e a célula do corpo principal mais próxima dele, procurada só na
+      // vizinhança que a distância já indicou
+      const alcance = Math.ceil(menor / celula) + 3;
+      const i0 = Math.max(0, (alvo % larg) - alcance);
+      const i1 = Math.min(larg - 1, (alvo % larg) + alcance);
+      const j0 = Math.max(0, ((alvo / larg) | 0) - alcance);
+      const j1 = Math.min(alt - 1, ((alvo / larg) | 0) + alcance);
+      let bx = ax, by = ay, melhorD = Infinity;
+      for (let j = j0; j <= j1; j++) {
+        for (let i = i0; i <= i1; i++) {
+          const q = j * larg + i;
+          if (!soPrincipal[q]) continue;
+          const qx = x0 + (i + 0.5) * celula, qy = y0 + (j + 0.5) * celula;
+          const d = (qx - ax) * (qx - ax) + (qy - ay) * (qy - ay);
+          if (d < melhorD) { melhorD = d; bx = qx; by = qy; }
+        }
+      }
+      if (melhorD === Infinity) continue;
+
+      pintarCapsula(mapa, grade, ax, ay, bx, by, raio, 1);
+      pontes++;
+    }
   }
 
   return { mapa, pontes };
