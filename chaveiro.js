@@ -318,6 +318,62 @@ function faceComAlivio(f, x, yFim, xPino, rAlivio, paraCima) {
   }
 }
 
+// Contorno do cubo em planta, já com os cantos arredondados, como polígono.
+// É sobre ele que o batente é calculado — a conta fechada só vale para canto
+// vivo, e o canto arredondado toca o vizinho mais tarde.
+function poligonoDoCubo(W, rc, passos = 10) {
+  const meia = W / 2;
+  const pts = [];
+  const canto = (cx, cy, a0, a1) => {
+    for (let i = 0; i <= passos; i++) {
+      const a = a0 + (a1 - a0) * (i / passos);
+      pts.push([cx + rc * Math.cos(a), cy + rc * Math.sin(a)]);
+    }
+  };
+  canto(W - rc, -meia + rc, -Math.PI / 2, 0);
+  canto(W - rc, meia - rc, 0, Math.PI / 2);
+  canto(rc, meia - rc, Math.PI / 2, Math.PI);
+  canto(rc, -meia + rc, Math.PI, Math.PI * 1.5);
+  return pts;
+}
+
+// Em que ângulo dois cubos vizinhos se tocam, girando um em torno do pino.
+function batenteMedido(W, rc, dp, passoGrau = 0.25) {
+  const base = poligonoDoCubo(W, rc);
+  const esquerda = base.map((p) => [p[0] - W - dp, p[1]]);   // face direita em -dp
+  const direita = base.map((p) => [p[0] + dp, p[1]]);        // face esquerda em +dp
+  const dentro = (p, poly) => {
+    let d = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      if ((poly[i][1] > p[1]) !== (poly[j][1] > p[1]) &&
+          p[0] < (poly[j][0] - poly[i][0]) * (p[1] - poly[i][1]) / (poly[j][1] - poly[i][1]) + poly[i][0]) d = !d;
+    }
+    return d;
+  };
+  for (let g = passoGrau; g <= 90; g += passoGrau) {
+    const a = (g * Math.PI) / 180;
+    const c = Math.cos(a), sn = Math.sin(a);
+    const movido = direita.map((p) => [p[0] * c - p[1] * sn, p[0] * sn + p[1] * c]);
+    if (movido.some((p) => dentro(p, esquerda)) || esquerda.some((p) => dentro(p, movido))) return g;
+  }
+  return 90;
+}
+
+// Acha o menor vão que ainda deixa o bloco girar o tanto pedido.
+//
+// Com canto vivo bastaria dp = (W/2)·tan(giro/2), mas o canto arredondado
+// encosta mais tarde, então o mesmo ângulo cabe num vão bem menor — e vão menor
+// é junta mais bonita e mais justa. Como não há fórmula fechada para o canto
+// arredondado, o valor sai por busca binária sobre o contorno de verdade.
+function acharVao(W, rc, giroGraus) {
+  let lo = 0.05, hi = (W / 2) * Math.tan((giroGraus * Math.PI) / 360) + 0.5;
+  for (let i = 0; i < 26; i++) {
+    const meio = (lo + hi) / 2;
+    if (batenteMedido(W, rc, meio) < giroGraus) lo = meio; else hi = meio;
+  }
+  return hi;
+}
+
 // O cubo visto de cima, com o alívio nas pontas que têm vizinho.
 function perfilCubo(op) {
   const { W, rc, dp, rAlivio, temEsq, temDir } = op;
@@ -410,15 +466,22 @@ function montarArticulado(op) {
   }
   const W = Math.max(alturaBanda, larguraMax) + MARGEM_BLOCO * 2;
   const T = W;                                   // cubo: altura igual ao lado
-  const rc = Math.min(1.0, W * 0.06);
+  const rc = Math.min(3.0, W * 0.18);            // canto bem arredondado
 
   // ---- dobradiça ----
   const rPino = diametroPino / 2;
   const rFuro = rPino + folga;
   const rDisco = rFuro + PAREDE_PINO;
-  const rAlivio = rDisco + FOLGA_ALIVIO;
-  const giro = (giroGraus * Math.PI) / 180;
-  const dp = (W / 2) * Math.tan(giro / 2);       // é isto que fixa o batente
+  // O alívio tem de ser fundo o bastante para a sua BOCA (onde ele encontra a
+  // face do cubo) ficar mais larga que o nó. Se ficar mais estreita, sobra uma
+  // fresta vazia dos dois lados do nó — feia e fraca. Como a boca vale
+  // sqrt(rAlivio² − vão²), o alívio cresce junto com o vão.
+  let rAlivio = rDisco + FOLGA_ALIVIO;
+  const dp = acharVao(W, rc, giroGraus);         // vão mínimo para o giro pedido
+  const bocaMin = rDisco + 0.15;
+  const precisa = Math.sqrt(bocaMin * bocaMin + dp * dp);
+  if (precisa > rAlivio) rAlivio = precisa;
+
   const zBaixo = (T - folga) / 2;                // topo do nó de baixo
   const zCima = (T + folga) / 2;                 // base do nó de cima
 
@@ -500,7 +563,8 @@ function montarArticulado(op) {
     blocos: letras.length,
     furo: furo ? { x: furo.x + desloca, y: furo.y, raio: furo.raio } : null,
     articulacao: {
-      W, T, dp, rPino, rFuro, rDisco, rAlivio,
+      W, T, rc, dp, rPino, rFuro, rDisco, rAlivio,
+      boca: Math.sqrt(Math.max(0, rAlivio * rAlivio - dp * dp)),
       folga, giroGraus, passo, zBaixo, zCima,
       vaoEntreBlocos: dp * 2,
     },
