@@ -29,6 +29,9 @@ const PADRAO = {
   giro: 30,
   comFuro: true,
   diametroFuro: 5,
+  paredeFuro: 3,
+  furoRecuo: 0,
+  furoNaDireita: false,
   espessura: 3,
   relevo: 1,
 };
@@ -218,6 +221,9 @@ function reconstruir() {
       alturaLetra: estado.relevo,
       comFuro: estado.comFuro,
       diametroFuro: estado.diametroFuro,
+      paredeFuro: estado.paredeFuro,
+      furoRecuo: estado.furoRecuo,
+      furoNaDireita: estado.furoNaDireita,
       borda: estado.borda,
       folgaArticulacao: estado.folga,
       giroArticulacao: estado.giro,
@@ -345,13 +351,24 @@ ligarDeslizante('#op-folga', '#val-folga', (v) => { estado.folga = v; }, mm);
 ligarDeslizante('#op-giro', '#val-giro', (v) => { estado.giro = v; }, (v) => `${v}°`);
 ligarDeslizante('#op-borda', '#val-borda', (v) => { estado.borda = v; }, mm);
 ligarDeslizante('#op-diametro', '#val-diametro', (v) => { estado.diametroFuro = v; }, mm);
+ligarDeslizante('#op-parede', '#val-parede', (v) => { estado.paredeFuro = v; }, mm);
+ligarDeslizante('#op-recuo', '#val-recuo', (v) => { estado.furoRecuo = v; }, mm);
 ligarDeslizante('#op-espessura', '#val-espessura', (v) => { estado.espessura = v; }, mm);
 ligarDeslizante('#op-relevo', '#val-relevo', (v) => { estado.relevo = v; }, mm);
+
+$('#op-lado').addEventListener('click', () => {
+  estado.furoNaDireita = !estado.furoNaDireita;
+  $('#op-lado').setAttribute('aria-checked', estado.furoNaDireita ? 'true' : 'false');
+  $('#rot-lado').textContent = estado.furoNaDireita ? 'Furo do lado direito' : 'Furo do lado esquerdo';
+  reconstruir();
+});
 
 $('#op-furo').addEventListener('click', () => {
   estado.comFuro = !estado.comFuro;
   $('#op-furo').setAttribute('aria-checked', estado.comFuro ? 'true' : 'false');
-  $('#linha-furo').hidden = !estado.comFuro;
+  for (const id of ['#linha-furo', '#linha-parede', '#linha-recuo', '#linha-lado']) {
+    $(id).hidden = !estado.comFuro;
+  }
   reconstruir();
 });
 
@@ -365,10 +382,14 @@ $('#restaurar').addEventListener('click', () => {
   $('#op-giro').value = PADRAO.giro; $('#val-giro').textContent = `${PADRAO.giro}°`;
   $('#op-borda').value = PADRAO.borda; $('#val-borda').textContent = mm(PADRAO.borda);
   $('#op-diametro').value = PADRAO.diametroFuro; $('#val-diametro').textContent = mm(PADRAO.diametroFuro);
+  $('#op-parede').value = PADRAO.paredeFuro; $('#val-parede').textContent = mm(PADRAO.paredeFuro);
+  $('#op-recuo').value = PADRAO.furoRecuo; $('#val-recuo').textContent = mm(PADRAO.furoRecuo);
+  $('#op-lado').setAttribute('aria-checked', 'false');
+  $('#rot-lado').textContent = 'Furo do lado esquerdo';
   $('#op-espessura').value = PADRAO.espessura; $('#val-espessura').textContent = mm(PADRAO.espessura);
   $('#op-relevo').value = PADRAO.relevo; $('#val-relevo').textContent = mm(PADRAO.relevo);
   $('#op-furo').setAttribute('aria-checked', 'true');
-  $('#linha-furo').hidden = false;
+  for (const id of ['#linha-furo', '#linha-parede', '#linha-recuo', '#linha-lado']) $(id).hidden = false;
   for (const b of $('.grade-opcoes[aria-labelledby="rot-estilo"] .cartao')) {
     const ativo = b.dataset.estilo === PADRAO.estilo;
     b.classList.toggle('ativo', ativo);

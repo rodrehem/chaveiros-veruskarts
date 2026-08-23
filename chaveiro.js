@@ -12,7 +12,7 @@ import {
 
 // ---------- Regras de impressão (fixas) ----------
 export const MARGEM = 3;        // texto até a borda, nos estilos com placa
-export const PAREDE_FURO = 3;   // material mínimo ao redor do furo
+export const PAREDE_FURO = 3;   // padrão do material ao redor do furo
 const AFUNDAR = 0.2;            // quanto as letras entram na placa (o fatiador une)
 const FOLGA_FURO_TEXTO = 2;     // texto x anel do furo, nos estilos com placa
 const AVISO_TAMANHO = 180;      // acima disso avisamos que ficou grande
@@ -94,14 +94,14 @@ function formaRetangular(largura, altura, raio) {
 function montarComPlaca(op) {
   const {
     aneisTexto, caixa, estilo, espessuraBase, alturaLetra,
-    comFuro, raioFuro, largurasPersonalizadas,
+    comFuro, raioFuro, paredeFuro, furoNaDireita, furoRecuo, largurasPersonalizadas,
   } = op;
 
   const alturaPlaca = op.alturaBanda + MARGEM * 2;
   const raioCanto = estilo === 'arredondado' ? alturaPlaca / 2 : Math.min(2.5, alturaPlaca * 0.14);
 
   // espaço reservado à esquerda para o furo da argola
-  const zonaFuro = comFuro ? PAREDE_FURO + raioFuro * 2 + FOLGA_FURO_TEXTO : 0;
+  const zonaFuro = comFuro ? paredeFuro + raioFuro * 2 + FOLGA_FURO_TEXTO + furoRecuo : 0;
   // nas pontas arredondadas o texto tem de se afastar da curva
   let folgaCurva = 0;
   if (estilo === 'arredondado') {
@@ -110,9 +110,11 @@ function montarComPlaca(op) {
     folgaCurva = Math.max(0, rc - Math.sqrt(Math.max(0, rc * rc - meia * meia))) * 0.85;
   }
 
-  const inicioTexto = Math.max(MARGEM + folgaCurva, zonaFuro + MARGEM * 0.5);
+  const zonaEsq = furoNaDireita ? 0 : zonaFuro;
+  const zonaDir = furoNaDireita ? zonaFuro : 0;
+  const inicioTexto = Math.max(MARGEM + folgaCurva, zonaEsq + MARGEM * 0.5);
   const larguraPlaca = Math.max(
-    inicioTexto + caixa.largura + MARGEM + folgaCurva,
+    inicioTexto + caixa.largura + MARGEM + folgaCurva + zonaDir,
     alturaPlaca * 1.25,
     largurasPersonalizadas || 0,
   );
@@ -122,10 +124,13 @@ function montarComPlaca(op) {
 
   let furo = null;
   if (comFuro) {
-    const alvo = raioFuro + PAREDE_FURO;
-    const p = { x: Math.max(alvo, PAREDE_FURO + raioFuro), y: alturaPlaca / 2 };
-    // empurra para dentro se a borda arredondada apertar
-    for (let k = 0; k < 200 && distanciaAoContorno(p, poly) < alvo - 0.02; k++) p.x += 0.15;
+    const alvo = raioFuro + paredeFuro;
+    // o furo pode ficar na ponta esquerda ou na direita, e recuar para dentro
+    const p = furoNaDireita
+      ? { x: larguraPlaca - alvo - furoRecuo, y: alturaPlaca / 2 }
+      : { x: alvo + furoRecuo, y: alturaPlaca / 2 };
+    const passo = furoNaDireita ? -0.15 : 0.15;
+    for (let k = 0; k < 300 && distanciaAoContorno(p, poly) < alvo - 0.02; k++) p.x += passo;
     furo = { x: p.x, y: p.y, raio: raioFuro };
     const caminho = new THREE.Path();
     caminho.absarc(furo.x, furo.y, raioFuro, 0, Math.PI * 2, true);
@@ -150,11 +155,11 @@ function montarComPlaca(op) {
 // ---------- estilos desenhados na grade (sombra e só letras) ----------
 function montarNaGrade(op) {
   const {
-    aneisTexto, caixa, estilo, comFuro, raioFuro, borda, tamanho,
+    aneisTexto, caixa, estilo, comFuro, raioFuro, paredeFuro, furoNaDireita, borda, tamanho,
   } = op;
 
   const ehSombra = estilo === 'sombra';
-  const raioAnel = raioFuro + PAREDE_FURO;
+  const raioAnel = raioFuro + paredeFuro;
   const bordaTeto = ehSombra ? borda + 4 : 0;
   const larguraPonte = Math.max(1.4, tamanho * 0.075);
 
@@ -199,12 +204,22 @@ function montarNaGrade(op) {
   // que ele fique grudado na peça de verdade (e não só perto dela).
   let furo = null;
   if (comFuro) {
-    let melhorI = grade.larg, melhorJ = -1;
+    // ponto de tinta mais à esquerda (ou à direita, se a argola for daquele lado)
+    let melhorI = furoNaDireita ? -1 : grade.larg, melhorJ = -1;
     for (let j = 0; j < grade.alt; j++) {
-      for (let i = 0; i < grade.larg; i++) {
-        if (mapa[j * grade.larg + i]) {
-          if (i < melhorI) { melhorI = i; melhorJ = j; }
-          break;
+      if (furoNaDireita) {
+        for (let i = grade.larg - 1; i >= 0; i--) {
+          if (mapa[j * grade.larg + i]) {
+            if (i > melhorI) { melhorI = i; melhorJ = j; }
+            break;
+          }
+        }
+      } else {
+        for (let i = 0; i < grade.larg; i++) {
+          if (mapa[j * grade.larg + i]) {
+            if (i < melhorI) { melhorI = i; melhorJ = j; }
+            break;
+          }
         }
       }
     }
@@ -214,7 +229,7 @@ function montarNaGrade(op) {
       // No estilo sombra a argola encosta na borda grossa e pode entrar mais.
       // No só-letras ela apenas encosta na primeira letra, senão parece outra letra.
       const entrada = ehSombra ? 0.5 : 0.76;
-      const cx = bordaX - raioAnel * entrada;
+      const cx = bordaX + (furoNaDireita ? raioAnel * entrada : -raioAnel * entrada);
       pintarDisco(mapa, grade, cx, bordaY, raioAnel, 1);
       pintarDisco(mapa, grade, cx, bordaY, raioFuro, 0);
       furo = { x: cx, y: bordaY, raio: raioFuro };
@@ -254,133 +269,98 @@ function montarNaGrade(op) {
 }
 
 // ---------- montagem completa ----------
-// ---------- estilo articulado: correntinha de blocos com pino ----------
+// ---------- estilo articulado: dobradiça de nós sobrepostos ----------
 //
-// Cada letra fica num bloco cúbico com a letra em alto-relevo na face de cima.
-// Na lateral esquerda há uma FORQUILHA (dois braços paralelos separados por uma
-// fenda); na lateral direita, uma LINGUETA que entra nessa fenda. Um pino
-// cilíndrico atravessa braços e lingueta e é o eixo de rotação. As pontas da
-// forquilha e da lingueta são semicírculos com centro no eixo do pino, então
-// giram sem raspar em nada.
+// É a dobradiça de pulseira de relógio: no encontro de dois blocos a espessura é
+// dividida ao meio. O bloco da esquerda fica só com a METADE DE BAIXO e avança
+// como uma lingueta que termina em disco; o da direita fica só com a METADE DE
+// CIMA e avança do mesmo jeito, por cima da outra. Somadas, as duas metades
+// recompõem a espessura inteira — de lado não há degrau. Um pino atravessa as
+// duas de cima a baixo, com o eixo perpendicular à face da letra.
 //
-// A peça sai da impressora já montada, o que impõe duas coisas:
+// O que NÃO é: um recorte de quebra-cabeça, com as duas peças inteiras se
+// encaixando lado a lado no mesmo plano. Aquilo não gira.
 //
-//   1. O pino nasce dos braços (cresce de baixo para cima na impressão) e a
-//      lingueta é que tem o furo. Se fosse o contrário, a metade de baixo do
-//      pino começaria no ar.
-//   2. Em lugar nenhum duas peças podem se encostar, ou a impressora funde as
-//      duas e a corrente vira um bloco rígido.
+// Cada bloco é montado com três sólidos:
 //
-// O BATENTE que limita o giro é a própria face do cubo. Girando em torno do
-// pino, o canto de um bloco encosta na face do outro; com o pino a uma distância
-// dp da face e o bloco com meia-largura W/2, o contato acontece em
+//   1. o cubo, com um ALÍVIO em arco em cada ponta (é o rebaixo circular que
+//      recebe o disco do vizinho);
+//   2. o nó de baixo, saindo pela direita, que preenche o alívio direito na
+//      metade de baixo;
+//   3. o nó de cima, saindo pela esquerda, que preenche o alívio esquerdo na
+//      metade de cima.
 //
-//     giro = 2 · atan( dp / (W/2) )
-//
-// Ou seja: para um giro pedido, dp = (W/2) · tan(giro/2). É essa conta que faz o
-// ângulo ser configurável de verdade, e não um número que saiu por acaso da
-// geometria. Como o pino fica perto da face, a forquilha passaria por dentro do
-// bloco vizinho — por isso cada face ganha um ALÍVIO em arco, de raio um pouco
-// maior que a ponta da forquilha, centrado no pino.
+// Sobra o alívio direito na metade de cima (onde entra o nó de cima do vizinho)
+// e o esquerdo na metade de baixo (onde entra o nó de baixo do outro vizinho).
 
-const MARGEM_BLOCO = 2.0;      // letra até a borda do bloco
-const PAREDE_PINO = 1.4;       // material entre o pino e a ponta da forquilha
-const FOLGA_ALIVIO = 0.3;      // sobra entre a ponta que gira e o alívio em arco
-const RECUO_LINGUETA = 2.0;    // o quanto a lingueta entra no corpo do bloco
+const MARGEM_BLOCO = 2.0;      // letra até a borda do cubo
+const PAREDE_PINO = 1.4;       // material entre o furo do pino e a beirada do disco
+const FOLGA_ALIVIO = 0.3;      // sobra entre o disco que gira e o alívio
+const RECUO_NO = 2.2;          // o quanto o nó entra no corpo do cubo
 
-// Face lateral com o alívio em arco no meio. Devolve os pontos de uma face
-// vertical (de baixo para cima) já com a mordida em volta do pino.
-function faceComAlivio(f, x, y0, y1, xPino, rAlivio, paraCima) {
+// Face lateral com o alívio em arco no meio, para o disco do vizinho girar ali.
+// O arco tem de morder PARA DENTRO do bloco: passa pelo ponto do círculo mais
+// próximo do corpo, nunca pelo lado de fora (foi assim que a junta virou uma aba
+// de quebra-cabeça na primeira tentativa).
+function faceComAlivio(f, x, yFim, xPino, rAlivio, paraCima) {
   const dp = Math.abs(xPino - x);
   const ya = rAlivio > dp ? Math.sqrt(rAlivio * rAlivio - dp * dp) : 0;
-  const sinal = xPino > x ? -1 : 1; // de que lado o arco morde
-  if (ya <= 0) {
-    f.lineTo(x, paraCima ? y1 : y0);
-    return;
-  }
+  if (ya <= 0) { f.lineTo(x, yFim); return; }
+  const lado = xPino > x ? -dp : dp;   // posição da face em relação ao pino
   if (paraCima) {
     f.lineTo(x, -ya);
-    f.absarc(xPino, 0, rAlivio, Math.atan2(-ya, sinal * dp), Math.atan2(ya, sinal * dp), sinal > 0);
-    f.lineTo(x, y1);
+    f.absarc(xPino, 0, rAlivio, Math.atan2(-ya, lado), Math.atan2(ya, lado), true);
+    f.lineTo(x, yFim);
   } else {
     f.lineTo(x, ya);
-    f.absarc(xPino, 0, rAlivio, Math.atan2(ya, sinal * dp), Math.atan2(-ya, sinal * dp), sinal < 0);
-    f.lineTo(x, y0);
+    f.absarc(xPino, 0, rAlivio, Math.atan2(ya, lado), Math.atan2(-ya, lado), true);
+    f.lineTo(x, yFim);
   }
 }
 
-// Perfil das faixas do braço (embaixo e em cima): o corpo do bloco mais o braço
-// da forquilha saindo pela esquerda.
-function perfilBraco(op) {
-  const { W, rc, dp, rPonta, rAlivio, temForquilha, temLingueta } = op;
+// O cubo visto de cima, com o alívio nas pontas que têm vizinho.
+function perfilCubo(op) {
+  const { W, rc, dp, rAlivio, temEsq, temDir } = op;
   const meia = W / 2;
   const f = new THREE.Shape();
 
   f.moveTo(rc, -meia);
   f.lineTo(W - rc, -meia);
   f.absarc(W - rc, -meia + rc, rc, -Math.PI / 2, 0, false);
-
-  // face direita: alívio para os braços do bloco seguinte girarem
-  if (temLingueta) faceComAlivio(f, W, -meia, meia - rc, W + dp, rAlivio, true);
+  if (temDir) faceComAlivio(f, W, meia - rc, W + dp, rAlivio, true);
   else f.lineTo(W, meia - rc);
-
   f.absarc(W - rc, meia - rc, rc, 0, Math.PI / 2, false);
   f.lineTo(rc, meia);
   f.absarc(rc, meia - rc, rc, Math.PI / 2, Math.PI, false);
-
-  if (temForquilha) {
-    // braço saindo pela esquerda, terminando em semicírculo no eixo do pino
-    f.lineTo(0, rPonta);
-    f.lineTo(-dp, rPonta);
-    f.absarc(-dp, 0, rPonta, Math.PI / 2, -Math.PI / 2, false);
-    f.lineTo(0, -rPonta);
-  }
-
-  f.lineTo(0, -meia + rc);
-  f.absarc(rc, -meia + rc, rc, Math.PI, Math.PI * 1.5, false);
-  return f;
-}
-
-// Perfil da faixa do meio (a fenda): o corpo do bloco, com alívio na esquerda
-// para a lingueta do bloco anterior girar.
-function perfilMeio(op) {
-  const { W, rc, dp, rAlivio, temForquilha } = op;
-  const meia = W / 2;
-  const f = new THREE.Shape();
-
-  f.moveTo(rc, -meia);
-  f.lineTo(W - rc, -meia);
-  f.absarc(W - rc, -meia + rc, rc, -Math.PI / 2, 0, false);
-  f.lineTo(W, meia - rc);
-  f.absarc(W - rc, meia - rc, rc, 0, Math.PI / 2, false);
-  f.lineTo(rc, meia);
-  f.absarc(rc, meia - rc, rc, Math.PI / 2, Math.PI);
-
-  if (temForquilha) faceComAlivio(f, 0, -meia + rc, meia - rc, -dp, rAlivio, false);
+  if (temEsq) faceComAlivio(f, 0, -meia + rc, -dp, rAlivio, false);
   else f.lineTo(0, -meia + rc);
-
   f.absarc(rc, -meia + rc, rc, Math.PI, Math.PI * 1.5, false);
   return f;
 }
 
-// Lingueta: barra saindo pela direita, ponta em semicírculo no eixo do pino,
-// com o furo do pino.
-function perfilLingueta(op) {
-  const { W, dp, rPonta, rFuro } = op;
+// Um nó: barra saindo do corpo do cubo e terminando em disco no eixo do pino.
+// `paraDireita` diz de que lado sai; `furo` fura o disco (o nó de cima recebe o
+// pino que nasce do nó de baixo do vizinho).
+function perfilNo(op) {
+  const { W, dp, rDisco, rFuro, paraDireita, comFuro } = op;
+  const xPino = paraDireita ? W + dp : -dp;
+  const xRaiz = paraDireita ? W - RECUO_NO : RECUO_NO;
   const f = new THREE.Shape();
-  f.moveTo(W - RECUO_LINGUETA, -rPonta);
-  f.lineTo(W + dp, -rPonta);
-  f.absarc(W + dp, 0, rPonta, -Math.PI / 2, Math.PI / 2, false);
-  f.lineTo(W - RECUO_LINGUETA, rPonta);
-  f.lineTo(W - RECUO_LINGUETA, -rPonta);
-  const furo = new THREE.Path();
-  furo.absarc(W + dp, 0, rFuro, 0, Math.PI * 2, true);
-  f.holes.push(furo);
+  f.moveTo(xRaiz, -rDisco);
+  f.lineTo(xPino, -rDisco);
+  f.absarc(xPino, 0, rDisco, -Math.PI / 2, Math.PI / 2, !paraDireita);
+  f.lineTo(xRaiz, rDisco);
+  f.lineTo(xRaiz, -rDisco);
+  if (comFuro) {
+    const h = new THREE.Path();
+    h.absarc(xPino, 0, rFuro, 0, Math.PI * 2, true);
+    f.holes.push(h);
+  }
   return f;
 }
 
-function orelhaDaArgola(raioFuro) {
-  const rt = raioFuro + PAREDE_FURO;
+function orelhaDaArgola(raioFuro, paredeFuro) {
+  const rt = raioFuro + paredeFuro;
   const cx = -rt;
   const f = new THREE.Shape();
   f.moveTo(2, -rt);
@@ -391,7 +371,14 @@ function orelhaDaArgola(raioFuro) {
   const furo = new THREE.Path();
   furo.absarc(cx, 0, raioFuro, 0, Math.PI * 2, true);
   f.holes.push(furo);
-  return { forma: f, furo: { x: cx, y: 0, raio: raioFuro } };
+  return { forma: f, furo: { x: cx, y: 0, raio: raioFuro }, largura: rt * 2 };
+}
+
+// Etiqueta a peça, para o teste poder falar de "nó de baixo do bloco 2" em vez
+// de adivinhar pelo tamanho da caixa.
+function marcar(geo, papel, bloco) {
+  geo.userData.marca = { papel, bloco };
+  return geo;
 }
 
 function extrudar(formas, z0, altura, curvas) {
@@ -405,8 +392,8 @@ function extrudar(formas, z0, altura, curvas) {
 function montarArticulado(op) {
   const {
     fonte, nomeUsado, tamanho, espaco, proporcao, curvasLetra,
-    comFuro, raioFuro, alturaLetra, banda,
-    fenda, lingueta, diametroPino, folgaPino, giroGraus,
+    comFuro, raioFuro, paredeFuro, alturaLetra, banda,
+    diametroPino, folga, giroGraus,
   } = op;
 
   const letras = Array.from(nomeUsado).filter((c) => c !== ' ');
@@ -422,79 +409,58 @@ function montarArticulado(op) {
     if (c.largura > larguraMax) larguraMax = c.largura;
   }
   const W = Math.max(alturaBanda, larguraMax) + MARGEM_BLOCO * 2;
+  const T = W;                                   // cubo: altura igual ao lado
   const rc = Math.min(1.0, W * 0.06);
 
   // ---- dobradiça ----
   const rPino = diametroPino / 2;
-  const rFuro = rPino + folgaPino;
-  const rPonta = rFuro + PAREDE_PINO;              // ponta da forquilha/lingueta
-  const rAlivio = rPonta + FOLGA_ALIVIO;           // mordida na face vizinha
+  const rFuro = rPino + folga;
+  const rDisco = rFuro + PAREDE_PINO;
+  const rAlivio = rDisco + FOLGA_ALIVIO;
   const giro = (giroGraus * Math.PI) / 180;
-  // é esta linha que torna o ângulo configurável: a distância do pino à face
-  const dp = (W / 2) * Math.tan(giro / 2);
-
-  // ---- faixas em Z ----
-  const zBaixo = (W - fenda) / 2;                  // topo do braço de baixo
-  const zCima = zBaixo + fenda;                    // base do braço de cima
-  const folgaZ = (fenda - lingueta) / 2;           // sobra acima e abaixo da lingueta
+  const dp = (W / 2) * Math.tan(giro / 2);       // é isto que fixa o batente
+  const zBaixo = (T - folga) / 2;                // topo do nó de baixo
+  const zCima = (T + folga) / 2;                 // base do nó de cima
 
   const passo = W + dp * 2;
   const grupo = new THREE.Group();
-  const geos = { base: [], letra: [] };
+  const base = [];
+  const letra = [];
   let furo = null;
+  let larguraOrelha = 0;
 
   for (let i = 0; i < letras.length; i++) {
     const x0 = i * passo;
-    const temForquilha = i > 0;
-    const temLingueta = i < letras.length - 1;
-    const comum = { W, rc, dp, rPonta, rAlivio, temForquilha, temLingueta };
+    const temEsq = i > 0;                        // nó de cima, saindo pela esquerda
+    const temDir = i < letras.length - 1;        // nó de baixo, saindo pela direita
+    const partes = [];
 
-    const braco = perfilBraco(comum);
-    const meio = perfilMeio(comum);
-
-    const formasBaixo = [braco];
-    const formasMeio = [meio];
-    const formasCima = [perfilBraco(comum)];
-
-    // primeiro bloco: orelha da argola no lugar da forquilha
+    const formasCubo = [perfilCubo({ W, rc, dp, rAlivio, temEsq, temDir })];
     if (i === 0 && comFuro) {
-      const o = orelhaDaArgola(raioFuro);
-      formasBaixo.push(o.forma);
-      formasMeio.push(o.forma.clone());
-      formasCima.push(o.forma.clone());
+      const o = orelhaDaArgola(raioFuro, paredeFuro);
+      formasCubo.push(o.forma);
       furo = { x: o.furo.x + x0, y: 0, raio: raioFuro };
+      larguraOrelha = o.largura;
+    }
+    partes.push(marcar(extrudar(formasCubo, 0, T, 20), 'cubo', i));
+
+    // nó de baixo (metade inferior) saindo pela direita, e o pino nele
+    if (temDir) {
+      partes.push(marcar(extrudar([perfilNo({ W, dp, rDisco, rFuro, paraDireita: true, comFuro: false })],
+        0, zBaixo, 28), 'noBaixo', i));
+      const p = new THREE.CylinderGeometry(rPino, rPino, T, 28);
+      p.rotateX(Math.PI / 2);
+      p.translate(W + dp, 0, T / 2);
+      partes.push(marcar(p, 'pino', i));
     }
 
-    // As faixas se sobrepõem um tiquinho em Z de propósito. Encostadas exatamente,
-    // elas ficariam com faces coincidentes: cada aresta apareceria duas vezes em
-    // cada sólido, o que confunde fatiador e ferramenta de conferência. A
-    // sobreposição fica dentro do corpo do cubo e não invade a fenda, porque a
-    // faixa do meio não tem braço nenhum.
-    const eps = 0.06;
-    const partes = [
-      extrudar(formasBaixo, 0, zBaixo, 20),
-      extrudar(formasMeio, zBaixo - eps, fenda + eps * 2, 20),
-      extrudar(formasCima, zCima, W - zCima, 20),
-    ];
-
-    if (temLingueta) {
-      partes.push(extrudar([perfilLingueta({ W, dp, rPonta, rFuro })],
-        zBaixo + folgaZ, lingueta, 24));
+    // nó de cima (metade superior) saindo pela esquerda, furado para o pino
+    if (temEsq) {
+      partes.push(marcar(extrudar([perfilNo({ W, dp, rDisco, rFuro, paraDireita: false, comFuro: true })],
+        zCima, T - zCima, 28), 'noCima', i));
     }
 
-    // pino: nasce dos braços e atravessa a fenda
-    if (temForquilha) {
-      // o pino entra um pouco dentro dos dois braços, para nascer deles de verdade
-      const p = new THREE.CylinderGeometry(rPino, rPino, fenda + eps * 2, 24);
-      p.rotateX(Math.PI / 2);                       // eixo do cilindro para Z
-      p.translate(-dp, 0, zBaixo + fenda / 2);
-      partes.push(p);
-    }
-
-    for (const g of partes) {
-      g.translate(x0, 0, 0);
-      geos.base.push(g);
-    }
+    for (const g of partes) { g.translate(x0, 0, 0); base.push(g); }
 
     // letra na face de cima
     const caixa = caixaDosAneis(porLetra[i]);
@@ -505,21 +471,23 @@ function montarArticulado(op) {
       const gl = new THREE.ExtrudeGeometry(formasLetra, {
         depth: alturaLetra + AFUNDAR, bevelEnabled: false, curveSegments: 1,
       });
-      gl.translate(0, 0, W - AFUNDAR);
-      geos.letra.push(gl);
+      gl.translate(0, 0, T - AFUNDAR);
+      letra.push(gl);
     }
   }
 
-  const xMin = comFuro ? -(raioFuro + PAREDE_FURO) * 2 : 0;
+  const xMin = -larguraOrelha;
   const xMax = (letras.length - 1) * passo + W;
   const largura = xMax - xMin;
   const desloca = -(xMin + xMax) / 2;
 
-  for (const g of geos.base) {
+  for (const g of base) {
     g.translate(desloca, 0, 0);
-    grupo.add(new THREE.Mesh(g, [materiais.baseTopo, materiais.baseLado]));
+    const m = new THREE.Mesh(g, [materiais.baseTopo, materiais.baseLado]);
+    m.userData = g.userData.marca || {};
+    grupo.add(m);
   }
-  for (const g of geos.letra) {
+  for (const g of letra) {
     g.translate(desloca, 0, 0);
     grupo.add(new THREE.Mesh(g, [materiais.letraTopo, materiais.letraLado]));
   }
@@ -528,12 +496,12 @@ function montarArticulado(op) {
     grupo,
     largura,
     altura: W,
-    alturaTotal: W + alturaLetra,
+    alturaTotal: T + alturaLetra,
     blocos: letras.length,
     furo: furo ? { x: furo.x + desloca, y: furo.y, raio: furo.raio } : null,
     articulacao: {
-      W, dp, rPino, rFuro, rPonta, rAlivio, fenda, lingueta,
-      folgaPino, folgaZ, giroGraus, passo, zBaixo, zCima,
+      W, T, dp, rPino, rFuro, rDisco, rAlivio,
+      folga, giroGraus, passo, zBaixo, zCima,
       vaoEntreBlocos: dp * 2,
     },
   };
@@ -546,6 +514,9 @@ export function montarChaveiro(opcoes) {
     espaco = 0, proporcao = 1,
     espessuraBase = 3, alturaLetra = 1,
     comFuro = true, diametroFuro = 5,
+    paredeFuro = PAREDE_FURO,
+    furoNaDireita = false,
+    furoRecuo = 0,
     borda = 2.5,
     espessuraTraco = 0,
     folgaArticulacao = 0.2,
@@ -598,16 +569,15 @@ export function montarChaveiro(opcoes) {
 
   const comum = {
     aneisTexto: aneisTexto0, caixa, estilo, espessuraBase, alturaLetra,
-    comFuro, raioFuro, borda, tamanho,
+    comFuro, raioFuro, paredeFuro, furoNaDireita, furoRecuo, borda, tamanho,
     alturaBanda, bandaBaixo: banda.baixo * tamanho,
   };
 
   if (estilo === 'articulado') {
     const art = montarArticulado({
       fonte, nomeUsado, tamanho, espaco, proporcao, curvasLetra,
-      comFuro, raioFuro, alturaLetra, banda,
-      fenda: 3, lingueta: 2.8, diametroPino: 2,
-      folgaPino: folgaArticulacao, giroGraus: giroArticulacao,
+      comFuro, raioFuro, paredeFuro, alturaLetra, banda,
+      diametroPino: 2, folga: folgaArticulacao, giroGraus: giroArticulacao,
     });
     if (!art) {
       return {
