@@ -36,6 +36,8 @@ const PADRAO = {
   furoX: 0,
   furoY: 0,
   furoDiamCorrente: 3.5,
+  escalaLetra: 80,
+  argolaExterna: true,
   comFuro: true,
   diametroFuro: 5,
   paredeFuro: 3,
@@ -320,6 +322,8 @@ function reconstruir() {
       furoX: estado.furoX,
       furoY: estado.furoY,
       furoDiametro: estado.furoDiamCorrente,
+      escalaLetra: estado.escalaLetra,
+      argolaExterna: estado.argolaExterna,
     });
 
     if (grupoAtual) { cena.remove(grupoAtual); descartarGrupo(grupoAtual); }
@@ -403,14 +407,23 @@ grupoBotoes('.grade-opcoes[aria-labelledby="rot-tamanho"]', 'tamanho', (v) => {
 
 function linhasDoFuro() {
   const correntinha = estado.estilo === 'articulado';
-  // nos estilos com placa: tamanho, borda, recuo e lado
+  const semFuro = !estado.comFuro;
+  // nos estilos com placa e contorno: tamanho, borda, recuo e lado
   for (const id of ['#linha-furo', '#linha-parede', '#linha-recuo', '#linha-lado']) {
-    $(id).hidden = !estado.comFuro || correntinha;
+    $(id).hidden = semFuro || correntinha;
   }
-  // na correntinha: em qual bloco e a posição livre, em coordenadas
-  for (const id of ['#linha-furo-bloco', '#linha-furo-x', '#linha-furo-y', '#linha-furo-diam']) {
-    $(id).hidden = !estado.comFuro || !correntinha;
+  // a argola externa é só da correntinha
+  $('#linha-argola-ext').hidden = semFuro || !correntinha;
+  // posição livre (X/Y): em TODOS os estilos; na correntinha só quando a
+  // argola externa está desligada (a argola tem lugar fixo, na ponta)
+  const livre = correntinha ? !estado.argolaExterna : true;
+  for (const id of ['#linha-furo-x', '#linha-furo-y']) {
+    $(id).hidden = semFuro || !livre;
   }
+  // em qual bloco: só da correntinha com furo no corpo
+  $('#linha-furo-bloco').hidden = semFuro || !correntinha || estado.argolaExterna;
+  // diâmetro próprio da correntinha (nos outros estilos vale o Tamanho do furo)
+  $('#linha-furo-diam').hidden = semFuro || !correntinha;
 }
 
 function visibilidadePorEstilo() {
@@ -428,6 +441,7 @@ function visibilidadePorEstilo() {
   $('.grade-opcoes[aria-labelledby="rot-tamanho"]').hidden = correntinha;
   $('#op-tamanho').closest('.deslizante').hidden = correntinha;
   $('#linha-bloco').hidden = !correntinha;
+  $('#linha-letra-bloco').hidden = !correntinha;
   // o relevo só existe onde há placa por baixo do texto
   $('#linha-relevo').hidden = soLetras;
   // na correntinha cada letra tem seu bloquinho, então espaçar não faz sentido
@@ -483,6 +497,7 @@ ligarDeslizante('#op-bloco', '#val-bloco', (v) => {
   $('#val-altura').textContent = mm(estado.espessuraBloco);
 }, mm);
 ligarDeslizante('#op-altura', '#val-altura', (v) => { estado.espessuraBloco = v; }, mm);
+ligarDeslizante('#op-letra-bloco', '#val-letra-bloco', (v) => { estado.escalaLetra = v; }, (v) => `${v}%`);
 ligarDeslizante('#op-furo-bloco', '#val-furo-bloco', (v) => { estado.furoBloco = v; }, (v) => `${v}º`);
 ligarDeslizante('#op-furo-x', '#val-furo-x', (v) => { estado.furoX = v; }, mm);
 ligarDeslizante('#op-furo-y', '#val-furo-y', (v) => { estado.furoY = v; }, mm);
@@ -509,6 +524,13 @@ $('#op-furo').addEventListener('click', () => {
   reconstruir();
 });
 
+$('#op-argola-ext').addEventListener('click', () => {
+  estado.argolaExterna = !estado.argolaExterna;
+  $('#op-argola-ext').setAttribute('aria-checked', estado.argolaExterna ? 'true' : 'false');
+  linhasDoFuro();
+  reconstruir();
+});
+
 $('#restaurar').addEventListener('click', () => {
   Object.assign(estado, PADRAO);
   $('#op-tamanho').value = PADRAO.tamanhoLetra; $('#val-tamanho').textContent = mm(PADRAO.tamanhoLetra);
@@ -525,6 +547,8 @@ $('#restaurar').addEventListener('click', () => {
   $('#op-furo-x').value = PADRAO.furoX; $('#val-furo-x').textContent = mm(PADRAO.furoX);
   $('#op-furo-y').value = PADRAO.furoY; $('#val-furo-y').textContent = mm(PADRAO.furoY);
   $('#op-furo-diam').value = PADRAO.furoDiamCorrente; $('#val-furo-diam').textContent = mm(PADRAO.furoDiamCorrente);
+  $('#op-letra-bloco').value = PADRAO.escalaLetra; $('#val-letra-bloco').textContent = `${PADRAO.escalaLetra}%`;
+  $('#op-argola-ext').setAttribute('aria-checked', 'true');
   $('#op-borda').value = PADRAO.borda; $('#val-borda').textContent = mm(PADRAO.borda);
   $('#op-diametro').value = PADRAO.diametroFuro; $('#val-diametro').textContent = mm(PADRAO.diametroFuro);
   $('#op-parede').value = PADRAO.paredeFuro; $('#val-parede').textContent = mm(PADRAO.paredeFuro);

@@ -94,7 +94,7 @@ function formaRetangular(largura, altura, raio) {
 function montarComPlaca(op) {
   const {
     aneisTexto, caixa, estilo, espessuraBase, alturaLetra,
-    comFuro, raioFuro, paredeFuro, furoNaDireita, furoRecuo, largurasPersonalizadas,
+    comFuro, raioFuro, paredeFuro, furoNaDireita, furoRecuo, furoX, furoY, largurasPersonalizadas,
   } = op;
 
   const alturaPlaca = op.alturaBanda + MARGEM * 2;
@@ -123,29 +123,63 @@ function montarComPlaca(op) {
   const poly = forma.getPoints(20);
 
   let furo = null;
+  const avisosFuro = [];
   if (comFuro) {
     const alvo = raioFuro + paredeFuro;
-    // o furo pode ficar na ponta esquerda ou na direita, e recuar para dentro
+    // posição de partida: a ponta escolhida, com o recuo…
     const p = furoNaDireita
       ? { x: larguraPlaca - alvo - furoRecuo, y: alturaPlaca / 2 }
       : { x: alvo + furoRecuo, y: alturaPlaca / 2 };
-    const passo = furoNaDireita ? -0.15 : 0.15;
-    for (let k = 0; k < 300 && distanciaAoContorno(p, poly) < alvo - 0.02; k++) p.x += passo;
-    furo = { x: p.x, y: p.y, raio: raioFuro };
-    const caminho = new THREE.Path();
-    caminho.absarc(furo.x, furo.y, raioFuro, 0, Math.PI * 2, true);
-    forma.holes.push(caminho);
+    // …mais o deslocamento livre pedido (X e Y a partir desse ponto)
+    p.x += furoX;
+    p.y += furoY;
+    // se ficou perto demais da borda, caminha de volta para o centro da placa
+    // até a parede pedida caber
+    const centro = { x: larguraPlaca / 2, y: alturaPlaca / 2 };
+    const cabe = (q) => dentroDoPoligono(q, poly) && distanciaAoContorno(q, poly) >= alvo - 0.02;
+    let moveu = false;
+    for (let k = 0; k < 400 && !cabe(p); k++) {
+      const dx = centro.x - p.x, dy = centro.y - p.y;
+      const d = Math.hypot(dx, dy) || 1;
+      p.x += (dx / d) * 0.15;
+      p.y += (dy / d) * 0.15;
+      moveu = true;
+    }
+    if (!cabe(p)) {
+      avisosFuro.push('O furo da argola não coube com essa parede. Ficou sem furo — diminua o furo ou a borda em volta dele.');
+    } else {
+      if (moveu && (Math.abs(furoX) > 0.01 || Math.abs(furoY) > 0.01)) {
+        avisosFuro.push('Empurrei o furo da argola para dentro, para manter a borda em volta dele.');
+      }
+      furo = { x: p.x, y: p.y, raio: raioFuro };
+      const caminho = new THREE.Path();
+      caminho.absarc(furo.x, furo.y, raioFuro, 0, Math.PI * 2, true);
+      forma.holes.push(caminho);
+    }
   }
 
   const dxTexto = inicioTexto - caixa.x0;
   const dyTexto = (alturaPlaca - op.alturaBanda) / 2 - op.bandaBaixo;
+  const aneisMovidos = moverAneis(aneisTexto, dxTexto, dyTexto);
+
+  // furo embaixo do texto: a letra em relevo taparia a entrada dele
+  if (furo) {
+    let tapado = false;
+    for (const anel of aneisMovidos) {
+      if (anel.contorno.some((q) => Math.hypot(q[0] - furo.x, q[1] - furo.y) < raioFuro + 0.6)) {
+        tapado = true; break;
+      }
+    }
+    if (tapado) avisosFuro.push('O furo da argola ficou embaixo do texto. O texto vai tapar o furo por cima — mova o furo com os ajustes.');
+  }
 
   return {
     formasBase: [forma],
-    aneisTexto: moverAneis(aneisTexto, dxTexto, dyTexto),
+    aneisTexto: aneisMovidos,
     largura: larguraPlaca,
     altura: alturaPlaca,
     furo,
+    avisosFuro,
     pedacos: 1,
     textoEmRelevo: true,
     curvasBase: 24,
@@ -155,7 +189,7 @@ function montarComPlaca(op) {
 // ---------- estilos desenhados na grade (sombra e só letras) ----------
 function montarNaGrade(op) {
   const {
-    aneisTexto, caixa, estilo, comFuro, raioFuro, paredeFuro, furoNaDireita, borda, tamanho,
+    aneisTexto, caixa, estilo, comFuro, raioFuro, paredeFuro, furoNaDireita, furoX, furoY, borda, tamanho,
   } = op;
 
   const ehSombra = estilo === 'sombra';
@@ -200,39 +234,83 @@ function montarNaGrade(op) {
   const ligado = ligarPedacos(mapa, grade, larguraPonte);
   mapa = ligado.mapa;
 
-  // Argola: encosta um disco no ponto de tinta mais à esquerda, garantindo
-  // que ele fique grudado na peça de verdade (e não só perto dela).
+  // Argola: encosta um disco na tinta, garantindo que ele fique grudado na
+  // peça de verdade (e não só perto dela). Sem deslocamento, vai para o ponto
+  // de tinta mais à esquerda (ou à direita). Com deslocamento (X/Y), o anel
+  // desliza pela silhueta: procura o ponto de tinta mais perto do lugar pedido
+  // e encosta ali, saindo para fora na direção local. Empurrado para dentro da
+  // tinta, ele vira um furo interno com o próprio anel de parede.
   let furo = null;
+  const avisosFuro = [];
   if (comFuro) {
-    // ponto de tinta mais à esquerda (ou à direita, se a argola for daquele lado)
-    let melhorI = furoNaDireita ? -1 : grade.larg, melhorJ = -1;
-    for (let j = 0; j < grade.alt; j++) {
-      if (furoNaDireita) {
-        for (let i = grade.larg - 1; i >= 0; i--) {
-          if (mapa[j * grade.larg + i]) {
-            if (i > melhorI) { melhorI = i; melhorJ = j; }
-            break;
+    const comAlvo = Math.abs(furoX) > 0.01 || Math.abs(furoY) > 0.01;
+    let px = null, py = null;
+    if (!comAlvo) {
+      let melhorI = furoNaDireita ? -1 : grade.larg, melhorJ = -1;
+      for (let j = 0; j < grade.alt; j++) {
+        if (furoNaDireita) {
+          for (let i = grade.larg - 1; i >= 0; i--) {
+            if (mapa[j * grade.larg + i]) {
+              if (i > melhorI) { melhorI = i; melhorJ = j; }
+              break;
+            }
+          }
+        } else {
+          for (let i = 0; i < grade.larg; i++) {
+            if (mapa[j * grade.larg + i]) {
+              if (i < melhorI) { melhorI = i; melhorJ = j; }
+              break;
+            }
           }
         }
-      } else {
-        for (let i = 0; i < grade.larg; i++) {
-          if (mapa[j * grade.larg + i]) {
-            if (i < melhorI) { melhorI = i; melhorJ = j; }
-            break;
+      }
+      if (melhorJ >= 0) {
+        px = grade.x0 + (melhorI + 0.5) * grade.celula;
+        py = grade.y0 + (melhorJ + 0.5) * grade.celula;
+        const entrada = ehSombra ? 0.5 : 0.76;
+        px += furoNaDireita ? raioAnel * entrada : -raioAnel * entrada;
+      }
+    } else {
+      // centro da tinta e ponto de tinta mais próximo do alvo pedido
+      let somaX = 0, somaY = 0, tinta = 0;
+      let pertoI = -1, pertoJ = -1, pertoD = Infinity;
+      const alvoX = caixa.x0 + caixa.largura / 2 + furoX;
+      const alvoY = caixa.y0 + caixa.altura / 2 + furoY;
+      for (let j = 0; j < grade.alt; j += 2) {
+        for (let i = 0; i < grade.larg; i += 2) {
+          if (!mapa[j * grade.larg + i]) continue;
+          const wx = grade.x0 + (i + 0.5) * grade.celula;
+          const wy = grade.y0 + (j + 0.5) * grade.celula;
+          somaX += wx; somaY += wy; tinta++;
+          const d = Math.hypot(wx - alvoX, wy - alvoY);
+          if (d < pertoD) { pertoD = d; pertoI = i; pertoJ = j; }
+        }
+      }
+      if (pertoJ >= 0) {
+        const wx = grade.x0 + (pertoI + 0.5) * grade.celula;
+        const wy = grade.y0 + (pertoJ + 0.5) * grade.celula;
+        if (pertoD < 0.01 + grade.celula * 2) {
+          // o alvo está em cima da tinta: furo interno, com o anel garantindo a parede
+          px = alvoX; py = alvoY;
+        } else {
+          // o alvo está fora: encosta o anel na silhueta, saindo para fora
+          const cxT = somaX / tinta, cyT = somaY / tinta;
+          let dx = wx - cxT, dy = wy - cyT;
+          const d = Math.hypot(dx, dy) || 1;
+          dx /= d; dy /= d;
+          const entrada = ehSombra ? 0.5 : 0.76;
+          px = wx + dx * raioAnel * entrada;
+          py = wy + dy * raioAnel * entrada;
+          if (pertoD > raioAnel * 3) {
+            avisosFuro.push('Encostei a argola no ponto da peça mais perto de onde você pediu.');
           }
         }
       }
     }
-    if (melhorJ >= 0) {
-      const bordaX = grade.x0 + (melhorI + 0.5) * grade.celula;
-      const bordaY = grade.y0 + (melhorJ + 0.5) * grade.celula;
-      // No estilo sombra a argola encosta na borda grossa e pode entrar mais.
-      // No só-letras ela apenas encosta na primeira letra, senão parece outra letra.
-      const entrada = ehSombra ? 0.5 : 0.76;
-      const cx = bordaX + (furoNaDireita ? raioAnel * entrada : -raioAnel * entrada);
-      pintarDisco(mapa, grade, cx, bordaY, raioAnel, 1);
-      pintarDisco(mapa, grade, cx, bordaY, raioFuro, 0);
-      furo = { x: cx, y: bordaY, raio: raioFuro };
+    if (px !== null) {
+      pintarDisco(mapa, grade, px, py, raioAnel, 1);
+      pintarDisco(mapa, grade, px, py, raioFuro, 0);
+      furo = { x: px, y: py, raio: raioFuro };
     }
   }
 
@@ -263,6 +341,7 @@ function montarNaGrade(op) {
     pedacos,
     pontes: ligado.pontes,
     bordaUsada,
+    avisosFuro,
     textoEmRelevo: ehSombra,
     curvasBase: 1,
   };
@@ -545,9 +624,9 @@ function acomodarFuro(pedido, raio, contorno, zonas) {
 
 function montarArticulado(op) {
   const {
-    fonte, nomeUsado, espaco, proporcao, curvasLetra, alturaLetra, banda, minimoFonte,
+    fonte, nomeUsado, espaco, proporcao, curvasLetra, alturaLetra, minimoFonte,
     tamanhoBloco, espessuraBloco, folgaRadial, folgaVertical, giroGraus, arredondamentoPct,
-    comFuro, furoBloco, furoX, furoY, raioFuroArgola,
+    escalaLetra, comFuro, argolaExterna, furoBloco, furoX, furoY, raioFuroArgola,
   } = op;
 
   const letras = Array.from(nomeUsado).filter((c) => c !== ' ');
@@ -555,30 +634,35 @@ function montarArticulado(op) {
   const avisos = [];
 
   // ---- letra derivada do bloco ----
-  // O bloco manda: a letra é a maior que cabe nele com a margem proporcional.
-  // Se essa letra ficar abaixo do mínimo imprimível da fonte, a letra fica no
-  // mínimo e o BLOCO cresce — melhor um bloco maior do que um traço que não sai.
+  // O bloco manda: a letra ocupa a fração pedida dele (Tamanho da letra).
+  //
+  // A fração é medida contra a TINTA de verdade do nome, não contra a banda
+  // tipográfica: a banda reserva espaço para ascendente e descendente mesmo
+  // quando o nome é todo em maiúsculas, e era isso que deixava as letras
+  // miúdas no bloco. Um nome sem descendente agora usa esse espaço.
+  //
+  // Se a letra pedida ficar abaixo do mínimo imprimível da fonte, a letra fica
+  // no mínimo e o BLOCO cresce — melhor bloco maior que traço que não sai.
   const REF = 10;
-  let kMax = banda.altura;
-  for (const ch of letras) {
-    const c = caixaDosAneis(poligonosDoTexto(fonte, ch, REF, espaco, proporcao, curvasLetra));
-    kMax = Math.max(kMax, c.largura / REF);
+  const medidas = letras.map((ch) =>
+    caixaDosAneis(poligonosDoTexto(fonte, ch, REF, espaco, proporcao, curvasLetra)));
+  let tintaY0 = Infinity, tintaY1 = -Infinity, kLargura = 0;
+  for (const c of medidas) {
+    tintaY0 = Math.min(tintaY0, c.y0);
+    tintaY1 = Math.max(tintaY1, c.y0 + c.altura);
+    kLargura = Math.max(kLargura, c.largura / REF);
   }
-  let margem = MARGEM_BLOCO * (tamanhoBloco / ESCALA_REF);
-  let tamanho = (tamanhoBloco - margem * 2) / kMax;
+  const kMax = Math.max((tintaY1 - tintaY0) / REF, kLargura);
+  const fracao = Math.min(0.95, Math.max(0.4, escalaLetra));
+  let tamanho = (tamanhoBloco * fracao) / kMax;
   let W = tamanhoBloco;
   if (tamanho < minimoFonte) {
     tamanho = minimoFonte;
-    for (let i = 0; i < 3; i++) {
-      W = kMax * tamanho + margem * 2;
-      margem = MARGEM_BLOCO * (W / ESCALA_REF);
-    }
+    W = (kMax * tamanho) / fracao;
     avisos.push('Com esta letra o bloco não fica menor que ' + W.toFixed(1).replace('.', ',') +
       ' mm, senão o traço não sai na impressão.');
   }
   const e = W / ESCALA_REF;                          // fator de escala de tudo
-  const porLetra = letras.map((ch) =>
-    poligonosDoTexto(fonte, ch, tamanho, espaco, proporcao, curvasLetra));
 
   // ---- dobradiça ----
   // As folgas são absolutas: 0,4 mm é o diâmetro do bico — qualquer vão
@@ -629,16 +713,49 @@ function montarArticulado(op) {
   // invade a face quando o pino é mais gordo que o vão — não encostar no corpo
   const asaFundo = Math.max(0, rPino + folgaRadial - dp);
 
+  // Letra grande demais para o canto arredondado transbordaria da face e
+  // sairia impressa no ar. Encolhe só o necessário para os cantos da caixa da
+  // letra caberem dentro do retângulo arredondado, com 0,5 mm de sobra.
+  if (rc > 0.5) {
+    const dentroDoCanto = (t) => {
+      const mx = (kLargura * t) / 2 + 0.5;
+      const my = ((tintaY1 - tintaY0) / REF) * t / 2 + 0.5;
+      const fx = Math.max(0, mx - (W / 2 - rc));
+      const fy = Math.max(0, my - (W / 2 - rc));
+      return Math.hypot(fx, fy) <= rc;
+    };
+    let cortes = 0;
+    while (!dentroDoCanto(tamanho) && cortes < 25) { tamanho *= 0.98; cortes++; }
+  }
+  // centro vertical da tinta do nome, comum a todos os blocos, para as letras
+  // ficarem alinhadas entre si
+  const meioTinta = ((tintaY0 + tintaY1) / 2) * (tamanho / REF);
+  const porLetra = letras.map((ch) =>
+    poligonosDoTexto(fonte, ch, tamanho, espaco, proporcao, curvasLetra));
+
+  // ---- argola externa ----
+  // Um anel redondo de verdade, saindo da lateral do primeiro bloco, com a
+  // mesma espessura e o mesmo chanfro dele. Ele entra um pouco no corpo para o
+  // fatiador fundir os dois; a parede em volta do furo nunca fica menor que a
+  // parede mínima da argola.
+  let argola = null;
+  if (comFuro && argolaExterna) {
+    const paredeArg = Math.max(PAREDE_FURO_ARGOLA + 1.4 * e, 2.4 * e);
+    const rExt = raioFuroArgola + paredeArg;
+    const entradaArg = 1.4 * e;                      // o quanto o anel entra no bloco
+    argola = { cx: -rExt + entradaArg, cy: 0, rExt, rFuro: raioFuroArgola };
+  }
+
   const passo = W + vao;
   const grupo = new THREE.Group();
   const base = [];
   const letra = [];
 
-  // ---- furo da argola ----
+  // ---- furo no corpo do bloco (quando a argola externa está desligada) ----
   const blocoDoFuro = Math.min(Math.max(1, Math.round(furoBloco)), letras.length) - 1;
   let furo = null;
   let furoLocal = null;
-  if (comFuro) {
+  if (comFuro && !argolaExterna) {
     // contorno do bloco em planta (aqui o arredondamento existe de verdade)
     const contorno = [];
     const rP = Math.min(rc, W / 2 - 0.01);
@@ -675,7 +792,7 @@ function montarArticulado(op) {
       // avisa se o furo ficou embaixo da letra (a letra taparia a entrada)
       const cx = caixaDosAneis(porLetra[blocoDoFuro]);
       const dxL = (W - cx.largura) / 2 - cx.x0;
-      const dyL = -banda.altura * tamanho / 2 - banda.baixo * tamanho;
+      const dyL = -meioTinta;
       for (const anel of porLetra[blocoDoFuro]) {
         const dentro = anel.contorno.some((p) =>
           Math.hypot(p[0] + dxL - lugar.x, p[1] + dyL - lugar.y) < raioFuroArgola + 0.6);
@@ -714,6 +831,23 @@ function montarArticulado(op) {
     corpo.translate(0, 0, CHANFRO_BASE - 0.02);
     partes.push(marcar(corpo, 'corpo', i));
 
+    // argola externa: anel redondo colado na lateral do primeiro bloco, com o
+    // mesmo chanfro e a mesma espessura dele
+    if (argola && i === 0) {
+      const fa = new THREE.Shape();
+      fa.absarc(argola.cx, argola.cy, argola.rExt, 0, Math.PI * 2, false);
+      const furoA = new THREE.Path();
+      furoA.absarc(argola.cx, argola.cy, argola.rFuro, 0, Math.PI * 2, true);
+      fa.holes.push(furoA);
+      partes.push(marcar(chanfroDaBase(fa, 32), 'chanfro', 0));
+      const anel = new THREE.ExtrudeGeometry([fa], {
+        depth: H - (CHANFRO_BASE - 0.02), bevelEnabled: false, curveSegments: 32,
+      });
+      anel.translate(0, 0, CHANFRO_BASE - 0.02);
+      partes.push(marcar(anel, 'argola', 0));
+      furo = { x: x0 + argola.cx, y: argola.cy, raio: argola.rFuro };
+    }
+
     // tetos: fecham a mordida e a boca acima da junta, deixando folga vertical
     // sobre o braço e o pescoço do vizinho. Entram 0,3 mm pelo material maciço
     // para o fatiador fundir sem parede coincidente.
@@ -751,7 +885,7 @@ function montarArticulado(op) {
     // letra na face de cima
     const caixa = caixaDosAneis(porLetra[i]);
     const dxL = x0 + (W - caixa.largura) / 2 - caixa.x0;
-    const dyL = -banda.altura * tamanho / 2 - banda.baixo * tamanho;
+    const dyL = -meioTinta;
     const formasLetra = aneisParaShapes(limparAneis(moverAneis(porLetra[i], dxL, dyL), 0.004, 0.004));
     if (formasLetra.length) {
       const gl = new THREE.ExtrudeGeometry(formasLetra, {
@@ -762,9 +896,10 @@ function montarArticulado(op) {
     }
   }
 
+  const xMin = argola ? argola.cx - argola.rExt : 0;
   const xMax = (letras.length - 1) * passo + W;
-  const largura = xMax;
-  const desloca = -xMax / 2;
+  const largura = xMax - xMin;
+  const desloca = -(xMin + xMax) / 2;
 
   for (const g of base) {
     g.translate(desloca, 0, 0);
@@ -793,6 +928,8 @@ function montarArticulado(op) {
       larguraPescoco, espBraco, compPino, folgaRadial, folgaVertical, giroGraus,
       passo, mordida, boca, bocaMeia, bocaAsa, asaFundo, alturaMinima, escala: e,
       pinoAlvo: DIAMETRO_PINO * e,
+      argola: argola ? { cx: argola.cx, rExt: argola.rExt, rFuro: argola.rFuro,
+                         extensao: -(argola.cx - argola.rExt) } : null,
       comprimentoTotal: largura,
     },
   };
@@ -823,6 +960,8 @@ export function montarChaveiro(opcoes) {
     furoX = 0,                  // deslocamento a partir do centro do bloco
     furoY = 0,
     furoDiametro = 3.5,
+    escalaLetra = 80,           // % do bloco que a letra ocupa
+    argolaExterna = true,       // anel redondo na lateral do primeiro bloco
   } = opcoes;
 
   const avisos = [];
@@ -872,7 +1011,7 @@ export function montarChaveiro(opcoes) {
 
   const comum = {
     aneisTexto: aneisTexto0, caixa, estilo, espessuraBase, alturaLetra,
-    comFuro, raioFuro, paredeFuro, furoNaDireita, furoRecuo, borda, tamanho,
+    comFuro, raioFuro, paredeFuro, furoNaDireita, furoRecuo, furoX, furoY, borda, tamanho,
     alturaBanda, bandaBaixo: banda.baixo * tamanho,
   };
 
@@ -889,7 +1028,8 @@ export function montarChaveiro(opcoes) {
       tamanhoBloco, espessuraBloco, folgaRadial,
       folgaVertical: Math.max(0.15, folgaVertical),
       giroGraus: giroArticulacao, arredondamentoPct: arredondamento / 100,
-      comFuro, furoBloco, furoX, furoY, raioFuroArgola: Math.max(1, furoDiametro / 2),
+      escalaLetra: escalaLetra / 100,
+      comFuro, argolaExterna, furoBloco, furoX, furoY, raioFuroArgola: Math.max(1, furoDiametro / 2),
     });
     if (!art) {
       return {
@@ -932,6 +1072,7 @@ export function montarChaveiro(opcoes) {
     r = montarComPlaca(comum);
   }
 
+  if (r.avisosFuro) avisos.push(...r.avisosFuro);
   if (r.pedacos > 1) {
     avisos.push('A peça ainda ficou em pedaços soltos. Diminua o espaço entre as letras.');
   } else if (r.pontes > 0) {

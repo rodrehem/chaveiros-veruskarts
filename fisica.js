@@ -59,17 +59,25 @@ export function criarSimulacao({ THREE, resultado }) {
   if (resultado.articulacao) {
     const a = resultado.articulacao;
     const n = resultado.blocos;
-    const L = n * a.W + (n - 1) * a.vao;
+    // a argola externa faz parte do primeiro bloco: o corpo dele fica mais
+    // comprido para ela não atravessar o chão quando o bloco tomba
+    const ext = a.argola ? a.argola.extensao : 0;
+    const L = n * a.W + (n - 1) * a.vao + ext;
+    const x0Bloco = (i) => -L / 2 + ext + i * a.passo;   // face esquerda do bloco i
     for (let i = 0; i < n; i++) {
-      const cx = -L / 2 + i * a.passo + a.W / 2;
-      corpos.push(novoCorpo(cx, a.H / 2, a.W, a.H));
+      if (i === 0 && ext) {
+        corpos.push(novoCorpo(x0Bloco(0) + (a.W - ext) / 2, a.H / 2, a.W + ext, a.H));
+      } else {
+        corpos.push(novoCorpo(x0Bloco(i) + a.W / 2, a.H / 2, a.W, a.H));
+      }
     }
     for (let i = 0; i + 1 < n; i++) {
       // o pino fica no meio do vão, na altura do eixo
+      const pinX = x0Bloco(i) + a.W + a.dp;
       juntas.push({
         a: i, b: i + 1,
-        la: { x: a.W / 2 + a.dp, z: a.zEixo - a.H / 2 },
-        lb: { x: -a.W / 2 - a.dp, z: a.zEixo - a.H / 2 },
+        la: { x: pinX - corpos[i].x0, z: a.zEixo - a.H / 2 },
+        lb: { x: pinX - corpos[i + 1].x0, z: a.zEixo - a.H / 2 },
         limCima: Math.max(0.02, batente(a.W, a.H, a.dp, a.zEixo, 1) - 0.01),
         limBaixo: Math.max(0.02, batente(a.W, a.H, a.dp, a.zEixo, -1) - 0.01),
       });

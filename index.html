@@ -135,6 +135,10 @@
         <label for="op-bloco">Tamanho do bloco <output id="val-bloco">15 mm</output></label>
         <input type="range" id="op-bloco" min="10" max="24" step="0.5" value="15">
       </div>
+      <div class="deslizante" id="linha-letra-bloco" hidden>
+        <label for="op-letra-bloco">Tamanho da letra no bloco <output id="val-letra-bloco">80%</output></label>
+        <input type="range" id="op-letra-bloco" min="50" max="95" step="5" value="80">
+      </div>
     </div>
 
     <div class="campo">
@@ -200,6 +204,13 @@
         <span class="etiqueta sem-margem" id="rot-lado">Furo do lado direito</span>
         <button type="button" id="op-lado" class="interruptor" role="switch"
                 aria-checked="false" aria-labelledby="rot-lado">
+          <span class="bolinha"></span>
+        </button>
+      </div>
+      <div class="linha-interruptor" id="linha-argola-ext" hidden>
+        <span class="etiqueta sem-margem" id="rot-argola-ext">Argola redonda na ponta</span>
+        <button type="button" id="op-argola-ext" class="interruptor" role="switch"
+                aria-checked="true" aria-labelledby="rot-argola-ext">
           <span class="bolinha"></span>
         </button>
       </div>
