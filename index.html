@@ -131,6 +131,10 @@
         <label for="op-tamanho">Altura da letra <output id="val-tamanho">15 mm</output></label>
         <input type="range" id="op-tamanho" min="6" max="34" step="0.5" value="15">
       </div>
+      <div class="deslizante" id="linha-bloco" hidden>
+        <label for="op-bloco">Tamanho do bloco <output id="val-bloco">15 mm</output></label>
+        <input type="range" id="op-bloco" min="10" max="24" step="0.5" value="15">
+      </div>
     </div>
 
     <div class="campo">
@@ -148,12 +152,16 @@
         <input type="range" id="op-traco" min="-4" max="15" step="1" value="0">
       </div>
       <div class="deslizante" id="linha-folga" hidden>
-        <label for="op-folga">Folga do pino <output id="val-folga">0,2 mm</output></label>
-        <input type="range" id="op-folga" min="0.1" max="0.5" step="0.05" value="0.2">
+        <label for="op-folga">Folga do pino <output id="val-folga">0,45 mm</output></label>
+        <input type="range" id="op-folga" min="0.4" max="0.8" step="0.05" value="0.45">
+      </div>
+      <div class="deslizante" id="linha-folga-v" hidden>
+        <label for="op-folga-v">Folga vertical <output id="val-folga-v">0,25 mm</output></label>
+        <input type="range" id="op-folga-v" min="0.15" max="0.5" step="0.05" value="0.25">
       </div>
       <div class="deslizante" id="linha-altura" hidden>
-        <label for="op-altura">Altura do bloco <output id="val-altura">7 mm</output></label>
-        <input type="range" id="op-altura" min="6" max="18" step="0.5" value="7">
+        <label for="op-altura">Espessura do bloco <output id="val-altura">8,25 mm</output></label>
+        <input type="range" id="op-altura" min="5" max="20" step="0.25" value="8.25">
       </div>
       <div class="deslizante" id="linha-arred" hidden>
         <label for="op-arred">Arredondamento das bordas <output id="val-arred">60%</output></label>
@@ -195,6 +203,22 @@
           <span class="bolinha"></span>
         </button>
       </div>
+      <div class="deslizante" id="linha-furo-bloco" hidden>
+        <label for="op-furo-bloco">Em qual bloco <output id="val-furo-bloco">1º</output></label>
+        <input type="range" id="op-furo-bloco" min="1" max="12" step="1" value="1">
+      </div>
+      <div class="deslizante" id="linha-furo-x" hidden>
+        <label for="op-furo-x">Furo: esquerda / direita <output id="val-furo-x">0 mm</output></label>
+        <input type="range" id="op-furo-x" min="-12" max="12" step="0.5" value="0">
+      </div>
+      <div class="deslizante" id="linha-furo-y" hidden>
+        <label for="op-furo-y">Furo: baixo / cima <output id="val-furo-y">0 mm</output></label>
+        <input type="range" id="op-furo-y" min="-12" max="12" step="0.5" value="0">
+      </div>
+      <div class="deslizante" id="linha-furo-diam" hidden>
+        <label for="op-furo-diam">Tamanho do furo <output id="val-furo-diam">3,5 mm</output></label>
+        <input type="range" id="op-furo-diam" min="2" max="8" step="0.5" value="3.5">
+      </div>
     </div>
 
     <details class="avancado">
@@ -223,6 +247,9 @@
         </button>
         <button type="button" id="centralizar" class="botao-visor" title="Enquadrar de novo">
           <span aria-hidden="true">⤢</span><span class="so-leitor">Enquadrar de novo</span>
+        </button>
+        <button type="button" id="testar" class="botao-visor" aria-pressed="false" title="Testar o chaveiro (física)">
+          <span aria-hidden="true">✋</span><span class="so-leitor">Testar o chaveiro</span>
         </button>
       </div>
       <p class="dica" id="dica">Arraste para girar &middot; role para aproximar</p>

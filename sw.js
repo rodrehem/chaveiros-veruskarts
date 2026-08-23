@@ -4,7 +4,7 @@
 // AO ALTERAR QUALQUER ARQUIVO DE site/, TROQUE O NÚMERO DA VERSÃO ABAIXO.
 // Sem isso, quem já abriu o site continua vendo a versão antiga.
 
-const VERSAO = 'chaveiros-v17';
+const VERSAO = 'chaveiros-v20';
 
 // Sem estes arquivos o aplicativo não funciona: se algum falhar, a instalação
 // do cache falha e tentamos de novo na próxima visita.
@@ -20,6 +20,7 @@ const ESSENCIAIS = [
   './app.js',
   './chaveiro.js',
   './forma.js',
+  './fisica.js',
   './fontes/fontes.json',
   './fontes/letra-firme.typeface.json',
   './vendor/three.module.min.js',

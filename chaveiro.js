@@ -268,52 +268,47 @@ function montarNaGrade(op) {
   };
 }
 
-// ---------- montagem completa ----------
-// ---------- estilo articulado: pino horizontal capturado ----------
+// ---------- correntinha articulada ----------
 //
-// Cada bloco tem um PINO na esquerda e um ENCAIXE na direita. O encaixe são dois
-// braços com um furo em cada um, e o furo é maior que o pino — é essa folga que
-// dá a soltura da corrente. O pino do bloco seguinte entra nesses dois furos.
+// Tudo aqui escala a partir do TAMANHO DO BLOCO (o lado da face da letra, em
+// mm): letra, pino, braços, paredes. Só duas coisas são absolutas e nunca
+// escalam: as FOLGAS (que dependem do bico da impressora, não da peça) e o furo
+// da argola.
 //
-// O eixo do pino é HORIZONTAL e atravessa a peça de lado a lado. Isso não é
-// detalhe de estilo, é o que segura a corrente montada: o pino fica preso dentro
-// de dois furos FECHADOS, e para soltar seria preciso abrir os braços à força.
-//
-// Antes o pino era vertical e o nó de cima ficava só pousado nele — nada segurava
-// para cima, e a corrente se desmontava levantando um bloco. Era o defeito.
-//
-// Como o furo do braço tem eixo horizontal, ele não sai de extrusão em Z: os
-// braços e o pescoço são extrudados em Y (perfil desenhado no plano XZ, de lado),
-// e só o corpo do bloco e a letra continuam em Z.
+// A peça imprime deitada, letra para cima, sem suporte nenhum: o eixo do pino
+// fica BAIXO (z = raio do braço), então braço e pescoço apoiam a barriga
+// inteira na mesa e as pontas redondas sobem da mesa em tangente, sem degrau.
+// O pino é a única coisa no ar: cada ponta dele atravessa o furo em balanço de
+// ~2 mm — o mesmo das correntinhas impressas de fábrica, curto demais para cair.
 
-const MARGEM_BLOCO = 2.0;      // letra até a borda do bloco
-const PAREDE_FURO_PINO = 1.3;  // material entre o furo e a beirada do braço
-const PAREDE_PESCOCO = 1.1;    // material em volta do pino, no pescoço
-const RECUO_BRACO = 2.0;       // o quanto o braço entra no corpo do bloco
-const RECUO_PESCOCO = 1.6;     // o quanto o pescoço entra no corpo do bloco
-
-// Retângulo arredondado como polígono, para medir o batente.
-function retanguloRedondo(comp, alt, rc, passos = 10) {
-  const r = Math.min(rc, comp / 2 - 0.01, alt / 2 - 0.01);
-  const pts = [];
-  const canto = (cx, cy, a0, a1) => {
-    for (let i = 0; i <= passos; i++) {
-      const a = a0 + (a1 - a0) * (i / passos);
-      pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
-    }
-  };
-  canto(comp - r, -alt / 2 + r, -Math.PI / 2, 0);
-  canto(comp - r, alt / 2 - r, 0, Math.PI / 2);
-  canto(r, alt / 2 - r, Math.PI / 2, Math.PI);
-  canto(r, -alt / 2 + r, Math.PI, Math.PI * 1.5);
-  return pts;
-}
+const ESCALA_REF = 15;          // as proporções abaixo valem para bloco de 15 mm
+const MARGEM_BLOCO = 2.0;       // letra até a borda do bloco (escala)
+const PAREDE_FURO_PINO = 1.3;   // material entre o furo e a beirada do braço (escala)
+const RECUO_BRACO = 2.0;        // o quanto o braço entra no corpo do bloco (escala)
+const RECUO_PESCOCO = 1.6;      // o quanto o pescoço entra no corpo do bloco (escala)
+const PAREDE_ACIMA = 1.6;       // material acima da dobradiça (escala)
+const DIAMETRO_PINO = 2.4;      // pino padrão (escala)
+const LARGURA_PESCOCO = 3.6;    // pescoço padrão (escala)
+const ESPESSURA_BRACO = 1.8;    // cada braço do garfo (escala)
+const CHANFRO_BASE = 0.4;       // chanfro 45° na aresta inferior (absoluto)
+const PAREDE_FURO_ARGOLA = 1.5; // parede mínima em volta do furo da argola (absoluto)
 
 // Em que ângulo dois blocos vizinhos se tocam, girando um em torno do pino.
-// A rotação agora acontece no plano XZ (o pino é horizontal), então quem manda
-// no batente é a ALTURA do bloco, não a largura.
-function batenteMedido(comp, alt, rc, dp, passoGrau = 0.25) {
-  const base = retanguloRedondo(comp, alt, rc);
+//
+// O contorno usado é o de LADO (plano XZ), e de lado o bloco é um retângulo de
+// cantos vivos: o arredondamento das bordas acontece em planta (extrusão em Z),
+// não neste plano. Medir com canto arredondado aqui prometia um giro que a peça
+// real, de canto reto, não entrega. Só o chanfro da base entra no contorno.
+//
+// O eixo fica BAIXO (zEixo, não no meio da espessura), então dobrar para um
+// lado encosta antes de dobrar para o outro; o batente que vale é o PIOR dos
+// dois sentidos, porque o giro prometido é "para cada lado".
+function batenteMedido(comp, alt, dp, zEixo, passoGrau = 0.25) {
+  const base = [
+    [0, CHANFRO_BASE - zEixo], [CHANFRO_BASE, -zEixo],
+    [comp - CHANFRO_BASE, -zEixo], [comp, CHANFRO_BASE - zEixo],
+    [comp, alt - zEixo], [0, alt - zEixo],
+  ];
   const esquerda = base.map((p) => [p[0] - comp - dp, p[1]]);
   const direita = base.map((p) => [p[0] + dp, p[1]]);
   const dentro = (p, poly) => {
@@ -324,34 +319,65 @@ function batenteMedido(comp, alt, rc, dp, passoGrau = 0.25) {
     }
     return d;
   };
-  for (let g = passoGrau; g <= 90; g += passoGrau) {
+  const toca = (g) => {
     const a = (g * Math.PI) / 180;
     const c = Math.cos(a), sn = Math.sin(a);
     const movido = direita.map((p) => [p[0] * c - p[1] * sn, p[0] * sn + p[1] * c]);
-    if (movido.some((p) => dentro(p, esquerda)) || esquerda.some((p) => dentro(p, movido))) return g;
+    return movido.some((p) => dentro(p, esquerda)) || esquerda.some((p) => dentro(p, movido));
+  };
+  for (let g = passoGrau; g <= 90; g += passoGrau) {
+    if (toca(g) || toca(-g)) return g;
   }
   return 90;
 }
 
-function acharVao(comp, alt, rc, giroGraus) {
-  let lo = 0.05, hi = alt * Math.tan((giroGraus * Math.PI) / 360) + 0.6;
+function acharVao(comp, alt, zEixo, giroGraus) {
+  let lo = 0.05, hi = alt * Math.tan((giroGraus * Math.PI) / 360) + 0.8;
   for (let i = 0; i < 26; i++) {
     const meio = (lo + hi) / 2;
-    if (batenteMedido(comp, alt, rc, meio) < giroGraus) lo = meio; else hi = meio;
+    if (batenteMedido(comp, alt, meio, zEixo) < giroGraus) lo = meio; else hi = meio;
   }
   return hi;
 }
 
-// Corpo do bloco em planta, com as mordidas na face esquerda por onde passam os
-// braços do vizinho.
+// Corpo do bloco em planta. Na face esquerda, as duas MORDIDAS por onde entram
+// os braços do vizinho. Na face direita, a BOCA central por onde entra o
+// pescoço do vizinho — sem ela o pescoço ficava ENTERRADO no corpo e a corrente
+// saía da impressora fundida num bloco só.
 function perfilCorpo(op) {
-  const { W, rc, mordidaFundo, mordidaDe, mordidaAte, comMordida } = op;
+  const {
+    W, rc, mordidaFundo, mordidaDe, mordidaAte, comMordida,
+    bocaFundo, bocaMeia, bocaAsa, asaFundo, comBoca,
+  } = op;
   const meia = W / 2;
   const r = Math.min(rc, W / 2 - 0.01);
   const f = new THREE.Shape();
   f.moveTo(r, -meia);
   f.lineTo(W - r, -meia);
   f.absarc(W - r, -meia + r, r, -Math.PI / 2, 0, false);
+  if (comBoca && bocaFundo > 0.01) {
+    // A boca é um recorte em degrau: fundo no meio (por onde entra o pescoço) e
+    // duas ASAS rasas na faixa dos braços. As asas existem porque o pino é mais
+    // gordo que o vão: a ponta dele invade a face do vizinho, e sem esse alívio
+    // o corpo fecharia o final do furo do braço — foi exatamente onde a peça
+    // impressa saiu soldada.
+    if (asaFundo > 0.01) {
+      f.lineTo(W, -bocaAsa);
+      f.lineTo(W - asaFundo, -bocaAsa);
+      f.lineTo(W - asaFundo, -bocaMeia);
+    } else {
+      f.lineTo(W, -bocaMeia);
+    }
+    f.lineTo(W - bocaFundo, -bocaMeia);
+    f.lineTo(W - bocaFundo, bocaMeia);
+    if (asaFundo > 0.01) {
+      f.lineTo(W - asaFundo, bocaMeia);
+      f.lineTo(W - asaFundo, bocaAsa);
+      f.lineTo(W, bocaAsa);
+    } else {
+      f.lineTo(W, bocaMeia);
+    }
+  }
   f.lineTo(W, meia - r);
   f.absarc(W - r, meia - r, r, 0, Math.PI / 2, false);
   f.lineTo(r, meia);
@@ -373,7 +399,7 @@ function perfilCorpo(op) {
 
 // Perfil visto DE LADO (plano XZ) de uma peça que termina em semicírculo com o
 // centro no eixo do pino. Serve para o braço do encaixe e para o pescoço.
-function perfilDeLado(xRaiz, xPino, raio, alturaMeia, rFuro) {
+function perfilDeLado(xRaiz, xPino, raio, rFuro) {
   const paraDireita = xPino > xRaiz;
   const f = new THREE.Shape();
   f.moveTo(xRaiz, -raio);
@@ -401,19 +427,81 @@ function extrudarEmY(forma, y0, espessura, z, curvas) {
   return g;
 }
 
-function orelhaDaArgola(raioFuro, paredeFuro) {
-  const rt = raioFuro + paredeFuro;
-  const cx = -rt;
-  const f = new THREE.Shape();
-  f.moveTo(2, -rt);
-  f.lineTo(cx, -rt);
-  f.absarc(cx, 0, rt, -Math.PI / 2, Math.PI / 2, true);
-  f.lineTo(2, rt);
-  f.lineTo(2, -rt);
-  const furo = new THREE.Path();
-  furo.absarc(cx, 0, raioFuro, 0, Math.PI * 2, true);
-  f.holes.push(furo);
-  return { forma: f, furo: { x: cx, y: 0, raio: raioFuro }, largura: rt * 2 };
+// Chanfro de 45° na aresta inferior do bloco, contra pé de elefante.
+//
+// O bevel do ExtrudeGeometry desloca cada vértice sem olhar os vizinhos e se
+// autocruza nos cantos côncavos das mordidas, deixando a malha furada. Então o
+// chanfro é construído à mão: o anel de baixo é o contorno deslocado para
+// DENTRO do material, o de cima é o contorno original a 0,4 mm de altura, e as
+// duas tampas fecham o sólido. O corpo começa 0,02 mm antes do topo do chanfro
+// de propósito: paredes exatamente coincidentes viram arestas contadas quatro
+// vezes no STL.
+function deslocarAnel(pontos, d) {
+  const n = pontos.length;
+  const saida = [];
+  for (let i = 0; i < n; i++) {
+    const a = pontos[(i - 1 + n) % n], p = pontos[i], b = pontos[(i + 1) % n];
+    const d1x = p.x - a.x, d1y = p.y - a.y, c1 = Math.hypot(d1x, d1y) || 1;
+    const d2x = b.x - p.x, d2y = b.y - p.y, c2 = Math.hypot(d2x, d2y) || 1;
+    // normal à esquerda de cada aresta; o material fica à esquerda do percurso
+    const l1x = -d1y / c1, l1y = d1x / c1;
+    const l2x = -d2y / c2, l2y = d2x / c2;
+    let mx = l1x + l2x, my = l1y + l2y;
+    const cm = Math.hypot(mx, my);
+    if (cm < 0.01) { mx = l2x; my = l2y; } else { mx /= cm; my /= cm; }
+    const meioCos = Math.max(0.4, Math.sqrt(Math.max(0, (1 + (l1x * l2x + l1y * l2y)) / 2)));
+    const s = Math.min(d / meioCos, d * 2.5);
+    saida.push(new THREE.Vector2(p.x + mx * s, p.y + my * s));
+  }
+  return saida;
+}
+
+function chanfroDaBase(forma, curvas) {
+  const ex = forma.extractPoints(curvas);
+  const limpar = (l) => {
+    const p = [];
+    for (const v of l) {
+      if (!p.length || p[p.length - 1].distanceTo(v) > 0.02) p.push(v);
+    }
+    while (p.length > 1 && p[0].distanceTo(p[p.length - 1]) < 0.02) p.pop();
+    return p;
+  };
+  const contorno = limpar(ex.shape);
+  const furos = ex.holes.map(limpar);
+  const baixoC = deslocarAnel(contorno, CHANFRO_BASE);
+  const baixoF = furos.map((f) => deslocarAnel(f, CHANFRO_BASE));
+
+  const pos = [];
+  const tri = (p1, p2, p3) => { pos.push(p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2]); };
+  const parede = (base, topo) => {
+    const n = base.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const b0 = [base[i].x, base[i].y, 0], b1 = [base[j].x, base[j].y, 0];
+      const t0 = [topo[i].x, topo[i].y, CHANFRO_BASE], t1 = [topo[j].x, topo[j].y, CHANFRO_BASE];
+      tri(b0, b1, t1); tri(b0, t1, t0);
+    }
+  };
+  parede(baixoC, contorno);
+  for (let k = 0; k < furos.length; k++) parede(baixoF[k], furos[k]);
+
+  // As duas tampas usam a MESMA triangulação, feita sobre o contorno original:
+  // o anel de baixo é só o de cima deslocado, então cada aresta da tampa de
+  // baixo bate exatamente com as arestas das paredes — casamento garantido por
+  // construção, sem depender do triangulador tratar pontos quase iguais.
+  const ts = THREE.ShapeUtils.triangulateShape(contorno, furos);
+  const cima = contorno.concat(...furos);
+  const baixo = baixoC.concat(...baixoF);
+  for (const t of ts) {
+    tri([baixo[t[2]].x, baixo[t[2]].y, 0], [baixo[t[1]].x, baixo[t[1]].y, 0], [baixo[t[0]].x, baixo[t[0]].y, 0]);
+    tri([cima[t[0]].x, cima[t[0]].y, CHANFRO_BASE], [cima[t[1]].x, cima[t[1]].y, CHANFRO_BASE], [cima[t[2]].x, cima[t[2]].y, CHANFRO_BASE]);
+  }
+
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  g.addGroup(0, pos.length / 3, 1);
+  return g;
 }
 
 function marcar(geo, papel, bloco) {
@@ -421,102 +509,240 @@ function marcar(geo, papel, bloco) {
   return geo;
 }
 
+// Box e Cylinder vêm com um grupo de material por face; nossos meshes só têm
+// dois materiais (tampa e lado). Reduz tudo a um grupo só, na cor do lado.
+function umMaterial(geo) {
+  geo.clearGroups();
+  geo.addGroup(0, geo.index ? geo.index.count : Infinity, 1);
+  return geo;
+}
+
+// Acha um lugar válido para o furo da argola dentro do bloco: parede mínima de
+// 1,5 mm até a borda e até qualquer parte da junta. Se o ponto pedido não
+// serve, procura o ponto válido mais perto dele, em anéis; devolve null se o
+// furo simplesmente não cabe.
+function acomodarFuro(pedido, raio, contorno, zonas) {
+  const cabe = (p) => {
+    if (distanciaAoContorno(p, contorno) < raio + PAREDE_FURO_ARGOLA - 0.01) return false;
+    if (!dentroDoPoligono(p, contorno)) return false;
+    for (const z of zonas) {
+      const dx = Math.max(z.x0 - p.x, 0, p.x - z.x1);
+      const dy = Math.max(z.y0 - p.y, 0, p.y - z.y1);
+      if (Math.hypot(dx, dy) < raio + PAREDE_FURO_ARGOLA - 0.01) return false;
+    }
+    return true;
+  };
+  if (cabe(pedido)) return { ...pedido, moveu: false };
+  for (let anel = 0.5; anel <= 30; anel += 0.5) {
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2;
+      const p = { x: pedido.x + anel * Math.cos(a), y: pedido.y + anel * Math.sin(a) };
+      if (cabe(p)) return { ...p, moveu: true };
+    }
+  }
+  return null;
+}
+
 function montarArticulado(op) {
   const {
-    fonte, nomeUsado, tamanho, espaco, proporcao, curvasLetra,
-    comFuro, raioFuro, paredeFuro, alturaLetra, banda,
-    diametroPino, folga, giroGraus, alturaBlocoMM, arredondamentoPct,
+    fonte, nomeUsado, espaco, proporcao, curvasLetra, alturaLetra, banda, minimoFonte,
+    tamanhoBloco, espessuraBloco, folgaRadial, folgaVertical, giroGraus, arredondamentoPct,
+    comFuro, furoBloco, furoX, furoY, raioFuroArgola,
   } = op;
 
   const letras = Array.from(nomeUsado).filter((c) => c !== ' ');
   if (!letras.length) return null;
+  const avisos = [];
 
-  // ---- tamanho do bloco ----
-  const alturaBanda = banda.altura * tamanho;
+  // ---- letra derivada do bloco ----
+  // O bloco manda: a letra é a maior que cabe nele com a margem proporcional.
+  // Se essa letra ficar abaixo do mínimo imprimível da fonte, a letra fica no
+  // mínimo e o BLOCO cresce — melhor um bloco maior do que um traço que não sai.
+  const REF = 10;
+  let kMax = banda.altura;
+  for (const ch of letras) {
+    const c = caixaDosAneis(poligonosDoTexto(fonte, ch, REF, espaco, proporcao, curvasLetra));
+    kMax = Math.max(kMax, c.largura / REF);
+  }
+  let margem = MARGEM_BLOCO * (tamanhoBloco / ESCALA_REF);
+  let tamanho = (tamanhoBloco - margem * 2) / kMax;
+  let W = tamanhoBloco;
+  if (tamanho < minimoFonte) {
+    tamanho = minimoFonte;
+    for (let i = 0; i < 3; i++) {
+      W = kMax * tamanho + margem * 2;
+      margem = MARGEM_BLOCO * (W / ESCALA_REF);
+    }
+    avisos.push('Com esta letra o bloco não fica menor que ' + W.toFixed(1).replace('.', ',') +
+      ' mm, senão o traço não sai na impressão.');
+  }
+  const e = W / ESCALA_REF;                          // fator de escala de tudo
   const porLetra = letras.map((ch) =>
     poligonosDoTexto(fonte, ch, tamanho, espaco, proporcao, curvasLetra));
-  let larguraMax = 0;
-  for (const aneis of porLetra) {
-    const c = caixaDosAneis(aneis);
-    if (c.largura > larguraMax) larguraMax = c.largura;
-  }
-  const W = Math.max(alturaBanda, larguraMax) + MARGEM_BLOCO * 2;
 
   // ---- dobradiça ----
-  // A dobradiça tem de caber na altura do bloco: braço = furo + parede, e ainda
-  // sobra material em cima e embaixo. Se a altura pedida for pequena demais para
-  // o pino cheio, o PINO ENCOLHE em vez de a altura ser ignorada — senão o
-  // controle de altura não faria nada. O piso é Ø1,4, abaixo disso o pino quebra;
-  // por isso a altura é pedida em milímetros e o cursor começa nos 6 mm que a
-  // dobradiça mais magra ainda ocupa — assim nenhum trecho do cursor fica morto.
-  const PAREDE_ACIMA = 1.6;
-  const Hpedida = alturaBlocoMM;
-  const rBracoCabe = (Hpedida - PAREDE_ACIMA) / 2;
-  const rPino = Math.max(0.7, Math.min(diametroPino / 2, rBracoCabe - folga - PAREDE_FURO_PINO));
-  const rFuro = rPino + folga;                       // o furo é maior que o pino
-  const rBraco = rFuro + PAREDE_FURO_PINO;
-  const rPescoco = rPino + PAREDE_PESCOCO;
+  // As folgas são absolutas: 0,4 mm é o diâmetro do bico — qualquer vão
+  // horizontal menor que isso a impressora solda. A vertical pode ser menor
+  // porque camada não gruda em camada através de um vão de ar.
+  const espessuraPedida = espessuraBloco || W * 0.55;
+  const paredeAcima = PAREDE_ACIMA * e;
+  const paredeFuroPino = PAREDE_FURO_PINO * e;
+  const rBracoCabe = (espessuraPedida - paredeAcima) / 2;
+  const rPino = Math.max(0.7, Math.min((DIAMETRO_PINO * e) / 2, rBracoCabe - folgaRadial - paredeFuroPino));
+  const rFuro = rPino + folgaRadial;                 // o furo é maior que o pino
+  const rBraco = rFuro + paredeFuroPino;
+  // pescoço com o MESMO raio do braço: a ponta em disco apoia inteira na mesa
+  const rPescoco = rBraco;
+  const zEixo = rBraco;                              // eixo baixo: tudo assenta no chão
 
-  const alturaMinima = rBraco * 2 + PAREDE_ACIMA;
-  const H = Math.max(alturaMinima, Hpedida);
-  const rc = Math.min(W, H) / 2 * arredondamentoPct;
+  const alturaMinima = rBraco * 2 + paredeAcima;
+  const H = Math.max(alturaMinima, espessuraPedida);
+  const tetoJunta = rBraco * 2 + folgaVertical;      // teto da mordida e da boca
 
-  const larguraPescoco = Math.max(3.0, rPino * 3);
-  const espBraco = Math.max(1.5, rPino * 1.5);
+  const larguraPescoco = LARGURA_PESCOCO * e;
+  const espBraco = ESPESSURA_BRACO * e;
   const yPescoco = larguraPescoco / 2;
-  const yBracoDe = yPescoco + folga;
+  const yBracoDe = yPescoco + folgaRadial;
   const yBracoAte = yBracoDe + espBraco;
   const compPino = yBracoAte * 2;                    // atravessa os dois braços
+  const mordidaYDe = yBracoDe - folgaRadial;
+  const mordidaYAte = yBracoAte + folgaRadial;
+  // a asa passa do braço pela folga inteira: a ponta do pino é rente à face
+  // externa do braço, e a parede da asa não pode chegar a menos de um bico dela
+  const bocaAsa = yBracoAte + folgaRadial;
 
-  // vão entre blocos: no plano XZ quem manda é a ALTURA
-  const dp = acharVao(W, H, rc, giroGraus);
+  // o arco do canto não pode invadir a faixa das mordidas nem das asas, senão
+  // o contorno do corpo se cruza sozinho e a malha sai furada
+  const rc = Math.max(0, Math.min(
+    Math.min(W, H) / 2 * arredondamentoPct,
+    W / 2 - Math.max(mordidaYAte, bocaAsa) - 0.05,
+  ));
+
+  // vão entre blocos: medido girando o contorno de verdade nos DOIS sentidos
+  const dp = Math.max(0.2, acharVao(W, H, zEixo, giroGraus));
   const vao = dp * 2;
-  const dPescoco = vao / 2;                          // pino no meio do vão
-  const dBraco = vao / 2;
-  // o braço passa da face do vizinho; ele entra pela mordida
-  const mordida = Math.max(0, rBraco - dPescoco + 0.35);
+  // o braço e o pescoço passam da face do vizinho; entram pela mordida e pela boca
+  const mordida = Math.max(0, rBraco - dp + folgaRadial);
+  const boca = Math.max(0, rPescoco - dp + folgaRadial);
+  const bocaMeia = yPescoco + folgaRadial;
+  // asas da boca: alívio raso na faixa dos braços, para a ponta do pino — que
+  // invade a face quando o pino é mais gordo que o vão — não encostar no corpo
+  const asaFundo = Math.max(0, rPino + folgaRadial - dp);
 
   const passo = W + vao;
   const grupo = new THREE.Group();
   const base = [];
   const letra = [];
+
+  // ---- furo da argola ----
+  const blocoDoFuro = Math.min(Math.max(1, Math.round(furoBloco)), letras.length) - 1;
   let furo = null;
-  let larguraOrelha = 0;
+  let furoLocal = null;
+  if (comFuro) {
+    // contorno do bloco em planta (aqui o arredondamento existe de verdade)
+    const contorno = [];
+    const rP = Math.min(rc, W / 2 - 0.01);
+    const canto = (cx, cy, a0, a1) => {
+      for (let i = 0; i <= 8; i++) {
+        const t = a0 + (a1 - a0) * (i / 8);
+        contorno.push({ x: cx + rP * Math.cos(t), y: cy + rP * Math.sin(t) });
+      }
+    };
+    canto(W - rP, -W / 2 + rP, -Math.PI / 2, 0);
+    canto(W - rP, W / 2 - rP, 0, Math.PI / 2);
+    canto(rP, W / 2 - rP, Math.PI / 2, Math.PI);
+    canto(rP, -W / 2 + rP, Math.PI, Math.PI * 1.5);
+    const zonas = [];
+    if (blocoDoFuro > 0) {                           // este bloco tem pescoço e mordidas
+      zonas.push({ x0: -1, x1: mordida, y0: mordidaYDe, y1: mordidaYAte });
+      zonas.push({ x0: -1, x1: mordida, y0: -mordidaYAte, y1: -mordidaYDe });
+      zonas.push({ x0: -1, x1: RECUO_PESCOCO * e, y0: -yPescoco, y1: yPescoco });
+    }
+    if (blocoDoFuro < letras.length - 1) {           // este bloco tem braços e boca
+      zonas.push({ x0: W - RECUO_BRACO * e, x1: W + 1, y0: yBracoDe, y1: yBracoAte });
+      zonas.push({ x0: W - RECUO_BRACO * e, x1: W + 1, y0: -yBracoAte, y1: -yBracoDe });
+      zonas.push({ x0: W - boca, x1: W + 1, y0: -bocaMeia, y1: bocaMeia });
+    }
+    const pedido = { x: W / 2 + furoX, y: furoY };
+    const lugar = acomodarFuro(pedido, raioFuroArgola, contorno, zonas);
+    if (!lugar) {
+      avisos.push('O furo da argola não coube neste bloco com 1,5 mm de parede. Ficou sem furo — diminua o furo ou escolha outro bloco.');
+    } else {
+      if (lugar.moveu) {
+        avisos.push('Empurrei o furo da argola para manter 1,5 mm de parede até a borda e até a junta.');
+      }
+      furoLocal = { x: lugar.x, y: lugar.y };
+      // avisa se o furo ficou embaixo da letra (a letra taparia a entrada)
+      const cx = caixaDosAneis(porLetra[blocoDoFuro]);
+      const dxL = (W - cx.largura) / 2 - cx.x0;
+      const dyL = -banda.altura * tamanho / 2 - banda.baixo * tamanho;
+      for (const anel of porLetra[blocoDoFuro]) {
+        const dentro = anel.contorno.some((p) =>
+          Math.hypot(p[0] + dxL - lugar.x, p[1] + dyL - lugar.y) < raioFuroArgola + 0.6);
+        if (dentro) {
+          avisos.push('O furo da argola ficou embaixo da letra. A letra vai tapar o furo por cima — mova o furo com os ajustes.');
+          break;
+        }
+      }
+    }
+  }
 
   for (let i = 0; i < letras.length; i++) {
     const x0 = i * passo;
     const temPino = i > 0;                           // pino sai pela esquerda
-    const temEncaixe = i < letras.length - 1;        // encaixe fica na direita
+    const temEncaixe = i < letras.length - 1;        // garfo fica na direita
     const partes = [];
 
-    const formasCorpo = [perfilCorpo({
-      W, rc, mordidaFundo: mordida, mordidaDe: yBracoDe, mordidaAte: yBracoAte,
-      comMordida: temPino,
-    })];
-    if (i === 0 && comFuro) {
-      const o = orelhaDaArgola(raioFuro, paredeFuro);
-      formasCorpo.push(o.forma);
-      furo = { x: o.furo.x + x0, y: 0, raio: raioFuro };
-      larguraOrelha = o.largura;
-    }
-    const corpo = new THREE.ExtrudeGeometry(formasCorpo, {
-      depth: H, bevelEnabled: false, curveSegments: 20,
+    const perfil = perfilCorpo({
+      W, rc,
+      mordidaFundo: mordida, mordidaDe: mordidaYDe, mordidaAte: mordidaYAte, comMordida: temPino,
+      bocaFundo: boca, bocaMeia, bocaAsa, asaFundo, comBoca: temEncaixe,
     });
+    if (furoLocal && i === blocoDoFuro) {
+      const caminho = new THREE.Path();
+      caminho.absarc(furoLocal.x, furoLocal.y, raioFuroArgola, 0, Math.PI * 2, true);
+      perfil.holes.push(caminho);
+      furo = { x: x0 + furoLocal.x, y: furoLocal.y, raio: raioFuroArgola };
+    }
+
+    // corpo em duas peças: o chanfro da base e o corpo em si, começando 0,02 mm
+    // antes do fim do chanfro para as paredes não coincidirem
+    partes.push(marcar(chanfroDaBase(perfil, 20), 'chanfro', i));
+    const corpo = new THREE.ExtrudeGeometry([perfil], {
+      depth: H - (CHANFRO_BASE - 0.02), bevelEnabled: false, curveSegments: 20,
+    });
+    corpo.translate(0, 0, CHANFRO_BASE - 0.02);
     partes.push(marcar(corpo, 'corpo', i));
 
-    // encaixe: dois braços furados, um de cada lado
-    if (temEncaixe) {
-      const perfil = perfilDeLado(W - RECUO_BRACO, W + dBraco, rBraco, H / 2, rFuro);
-      partes.push(marcar(extrudarEmY(perfil, yBracoDe, espBraco, H / 2, 26), 'braco', i));
-      partes.push(marcar(extrudarEmY(perfil.clone(), -yBracoAte, espBraco, H / 2, 26), 'braco', i));
+    // tetos: fecham a mordida e a boca acima da junta, deixando folga vertical
+    // sobre o braço e o pescoço do vizinho. Entram 0,3 mm pelo material maciço
+    // para o fatiador fundir sem parede coincidente.
+    const teto = (x0t, x1t, y0t, y1t) => {
+      const g = umMaterial(new THREE.BoxGeometry(x1t - x0t, y1t - y0t, H - tetoJunta));
+      g.translate((x0t + x1t) / 2, (y0t + y1t) / 2, (tetoJunta + H) / 2);
+      return g;
+    };
+    if (temPino && mordida > 0.01) {
+      partes.push(marcar(teto(0, mordida + 0.3, mordidaYDe - 0.3, mordidaYAte + 0.3), 'teto', i));
+      partes.push(marcar(teto(0, mordida + 0.3, -mordidaYAte - 0.3, -mordidaYDe + 0.3), 'teto', i));
+    }
+    if (temEncaixe && boca > 0.01) {
+      partes.push(marcar(teto(W - boca - 0.3, W, -bocaAsa - 0.4, bocaAsa + 0.4), 'teto', i));
     }
 
-    // pino: pescoço saindo pela esquerda e o cilindro horizontal
+    // garfo: dois braços furados, apoiados na mesa (o eixo fica em z = rBraco)
+    if (temEncaixe) {
+      const pb = perfilDeLado(W - RECUO_BRACO * e, W + dp, rBraco, rFuro);
+      partes.push(marcar(extrudarEmY(pb, yBracoDe, espBraco, zEixo, 26), 'braco', i));
+      partes.push(marcar(extrudarEmY(pb.clone(), -yBracoAte, espBraco, zEixo, 26), 'braco', i));
+    }
+
+    // pescoço e pino, também apoiados na mesa
     if (temPino) {
-      const perfil = perfilDeLado(RECUO_PESCOCO, -dPescoco, rPescoco, H / 2, 0);
-      partes.push(marcar(extrudarEmY(perfil, -yPescoco, larguraPescoco, H / 2, 26), 'pescoco', i));
-      const p = new THREE.CylinderGeometry(rPino, rPino, compPino, 26);
-      p.translate(-dPescoco, 0, H / 2);
+      const pp = perfilDeLado(RECUO_PESCOCO * e, -dp, rPescoco, 0);
+      partes.push(marcar(extrudarEmY(pp, -yPescoco, larguraPescoco, zEixo, 26), 'pescoco', i));
+      const p = umMaterial(new THREE.CylinderGeometry(rPino, rPino, compPino, 26));
+      p.translate(-dp, 0, zEixo);
       partes.push(marcar(p, 'pino', i));
     }
 
@@ -525,21 +751,20 @@ function montarArticulado(op) {
     // letra na face de cima
     const caixa = caixaDosAneis(porLetra[i]);
     const dxL = x0 + (W - caixa.largura) / 2 - caixa.x0;
-    const dyL = -alturaBanda / 2 - banda.baixo * tamanho;
+    const dyL = -banda.altura * tamanho / 2 - banda.baixo * tamanho;
     const formasLetra = aneisParaShapes(limparAneis(moverAneis(porLetra[i], dxL, dyL), 0.004, 0.004));
     if (formasLetra.length) {
       const gl = new THREE.ExtrudeGeometry(formasLetra, {
         depth: alturaLetra + AFUNDAR, bevelEnabled: false, curveSegments: 1,
       });
       gl.translate(0, 0, H - AFUNDAR);
-      letra.push(gl);
+      letra.push(marcar(gl, 'letra', i));
     }
   }
 
-  const xMin = -larguraOrelha;
   const xMax = (letras.length - 1) * passo + W;
-  const largura = xMax - xMin;
-  const desloca = -(xMin + xMax) / 2;
+  const largura = xMax;
+  const desloca = -xMax / 2;
 
   for (const g of base) {
     g.translate(desloca, 0, 0);
@@ -549,7 +774,9 @@ function montarArticulado(op) {
   }
   for (const g of letra) {
     g.translate(desloca, 0, 0);
-    grupo.add(new THREE.Mesh(g, [materiais.letraTopo, materiais.letraLado]));
+    const m = new THREE.Mesh(g, [materiais.letraTopo, materiais.letraLado]);
+    m.userData = g.userData.marca || {};   // a física precisa saber de que bloco é
+    grupo.add(m);
   }
 
   return {
@@ -558,14 +785,20 @@ function montarArticulado(op) {
     altura: W,
     alturaTotal: H + alturaLetra,
     blocos: letras.length,
+    avisos,
+    tamanhoLetra: tamanho,
     furo: furo ? { x: furo.x + desloca, y: furo.y, raio: furo.raio } : null,
     articulacao: {
-      W, H, rc, dp, vao, rPino, rFuro, rBraco, rPescoco,
-      larguraPescoco, espBraco, compPino, folga, giroGraus, passo,
-      mordida, alturaMinima,
+      W, H, rc, dp, vao, zEixo, tetoJunta, rPino, rFuro, rBraco, rPescoco,
+      larguraPescoco, espBraco, compPino, folgaRadial, folgaVertical, giroGraus,
+      passo, mordida, boca, bocaMeia, bocaAsa, asaFundo, alturaMinima, escala: e,
+      pinoAlvo: DIAMETRO_PINO * e,
+      comprimentoTotal: largura,
     },
   };
 }
+
+// ---------- montagem completa ----------
 
 export function montarChaveiro(opcoes) {
   const {
@@ -579,10 +812,17 @@ export function montarChaveiro(opcoes) {
     furoRecuo = 0,
     borda = 2.5,
     espessuraTraco = 0,
-    folgaArticulacao = 0.2,
+    // --- só da correntinha ---
+    tamanhoBloco = 15,          // lado da face do bloco, em mm; tudo escala dele
+    espessuraBloco = 0,         // 0 = proporcional (55% do bloco)
+    folgaArticulacao = 0.45,    // folga radial pino/furo e pescoço/braço
+    folgaVertical = 0.25,       // folga entre faces sobrepostas na vertical
     giroArticulacao = 30,
-    alturaBloco = 7,
     arredondamento = 60,
+    furoBloco = 1,              // em qual bloco fica o furo da argola
+    furoX = 0,                  // deslocamento a partir do centro do bloco
+    furoY = 0,
+    furoDiametro = 3.5,
   } = opcoes;
 
   const avisos = [];
@@ -592,7 +832,8 @@ export function montarChaveiro(opcoes) {
   const raioFuro = Math.max(1, diametroFuro / 2);
   const minimoFonte = tamanhoMinimoDaFonte(fonte);
   let tamanho = Math.max(tamanhoLetra, minimoFonte);
-  if (tamanhoLetra < minimoFonte - 0.05) {
+  if (tamanhoLetra < minimoFonte - 0.05 && estilo !== 'articulado') {
+    // na correntinha a letra vem do tamanho do bloco, não deste controle
     avisos.push('Esta letra não fica menor que ' + minimoFonte.toString().replace('.', ',') + ' mm, senão o traço não sai na impressão.');
   }
 
@@ -636,11 +877,19 @@ export function montarChaveiro(opcoes) {
   };
 
   if (estilo === 'articulado') {
+    // abaixo do diâmetro do bico a impressora solda as duas partes — não existe
+    // folga horizontal menor que 0,4 mm que funcione
+    let folgaRadial = folgaArticulacao;
+    if (folgaRadial < 0.4) {
+      folgaRadial = 0.4;
+      avisos.push('A folga do pino não pode ser menor que 0,4 mm (o diâmetro do bico), senão a junta sai soldada. Usei 0,4 mm.');
+    }
     const art = montarArticulado({
-      fonte, nomeUsado, tamanho, espaco, proporcao, curvasLetra,
-      comFuro, raioFuro, paredeFuro, alturaLetra, banda,
-      diametroPino: 2.4, folga: folgaArticulacao, giroGraus: giroArticulacao,
-      alturaBlocoMM: alturaBloco, arredondamentoPct: arredondamento / 100,
+      fonte, nomeUsado, espaco, proporcao, curvasLetra, alturaLetra, banda, minimoFonte,
+      tamanhoBloco, espessuraBloco, folgaRadial,
+      folgaVertical: Math.max(0.15, folgaVertical),
+      giroGraus: giroArticulacao, arredondamentoPct: arredondamento / 100,
+      comFuro, furoBloco, furoX, furoY, raioFuroArgola: Math.max(1, furoDiametro / 2),
     });
     if (!art) {
       return {
@@ -648,13 +897,16 @@ export function montarChaveiro(opcoes) {
         pedacos: 0, tamanhoLetra: tamanho,
       };
     }
-    if (art.articulacao.rPino * 2 < 2.0) {
-      avisos.push('Nesta altura o pino fica com ' +
+    avisos.push(...art.avisos);
+    // o pino só é motivo de aviso quando a ESPESSURA o espremeu abaixo do que a
+    // escala do bloco pedia — pino pequeno em bloco pequeno é só proporção
+    if (art.articulacao.rPino * 2 < art.articulacao.pinoAlvo - 0.02) {
+      avisos.push('Nesta espessura o pino fica com ' +
         (art.articulacao.rPino * 2).toFixed(1).replace('.', ',') +
-        ' mm e pode quebrar. Aumente a altura do bloco.');
+        ' mm e pode quebrar. Aumente a espessura do bloco.');
     }
     if (art.largura > AVISO_TAMANHO) {
-      avisos.push('Esse chaveiro ficou bem grande. Se puder, use um nome menor ou uma letra menor.');
+      avisos.push('Esse chaveiro ficou bem grande. Se puder, use um nome menor ou um bloco menor.');
     }
     return {
       grupo: art.grupo,
@@ -667,7 +919,8 @@ export function montarChaveiro(opcoes) {
       pedacos: 1,
       blocos: art.blocos,
       articulacao: art.articulacao,
-      tamanhoLetra: tamanho,
+      comprimentoTotal: art.largura,
+      tamanhoLetra: art.tamanhoLetra,
       furo: art.furo,
     };
   }

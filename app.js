@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { criarSimulacao } from './fisica.js';
 import {
   criarFonte, montarChaveiro, exportarSTL, nomeDoArquivo, descartarGrupo,
   materiais, TAMANHOS,
@@ -25,10 +26,16 @@ const PADRAO = {
   proporcao: 100,
   borda: 2.5,
   traco: 0,
-  folga: 0.2,
+  folga: 0.45,
+  folgaV: 0.25,
   giro: 30,
-  alturaBloco: 7,
+  tamanhoBloco: 15,
+  espessuraBloco: 8.25,
   arredondamento: 60,
+  furoBloco: 1,
+  furoX: 0,
+  furoY: 0,
+  furoDiamCorrente: 3.5,
   comFuro: true,
   diametroFuro: 5,
   paredeFuro: 3,
@@ -151,7 +158,7 @@ controles.addEventListener('start', () => {
   $('#dica').classList.add('some');
 });
 controles.addEventListener('end', () => {
-  if (girarLigado) controles.autoRotate = true;
+  if (girarLigado && !fisicaLigada) controles.autoRotate = true;
 });
 
 function enquadrar(suave = false) {
@@ -185,10 +192,86 @@ function ajustarTela() {
 new ResizeObserver(ajustarTela).observe($('#palco'));
 window.addEventListener('resize', ajustarTela);
 
+let relogio = performance.now();
 renderer.setAnimationLoop(() => {
+  const agora = performance.now();
+  const dt = Math.min((agora - relogio) / 1000, 0.05);
+  relogio = agora;
+  if (simulacao) simulacao.passo(dt);
   controles.update();
   renderer.render(cena, camera);
 });
+
+// ---------------- física: testar o chaveiro ----------------
+// O botão ✋ liga a bancada de teste: a peça vira corpos rígidos, a correntinha
+// dobra até o batente de verdade e dá para arrastar com o mouse. Desligar
+// remonta a peça no lugar.
+let simulacao = null;
+let fisicaLigada = false;
+
+function ligarFisica(liga) {
+  const b = $('#testar');
+  if (liga && (!resultadoAtual || !resultadoAtual.temTexto)) liga = false;
+  fisicaLigada = liga;
+  b.classList.toggle('ativo', liga);
+  b.setAttribute('aria-pressed', liga ? 'true' : 'false');
+  if (liga) {
+    simulacao = criarSimulacao({ THREE, resultado: resultadoAtual });
+    controles.autoRotate = false;
+    $('#dica').textContent = 'Arraste o chaveiro para balançar · clique no ✋ para parar';
+    $('#dica').classList.remove('some');
+  } else {
+    simulacao = null;
+    pegando = false;
+    controles.enabled = true;
+    if (girarLigado) controles.autoRotate = true;
+    $('#dica').textContent = 'Arraste para girar · role para aproximar';
+    reconstruir();          // remonta a peça arrumada
+  }
+}
+$('#testar').addEventListener('click', () => ligarFisica(!fisicaLigada));
+
+const planoPega = new THREE.Plane();
+const raioPega = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let pegando = false;
+
+function pontoDoMouse(e) {
+  const r = tela.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raioPega.setFromCamera(ndc, camera);
+  const alvo = new THREE.Vector3();
+  return raioPega.ray.intersectPlane(planoPega, alvo) ? alvo : null;
+}
+
+tela.addEventListener('pointerdown', (e) => {
+  if (!simulacao || !grupoAtual) return;
+  const r = tela.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raioPega.setFromCamera(ndc, camera);
+  const acertos = raioPega.intersectObject(grupoAtual, true);
+  if (!acertos.length) return;             // clicou fora da peça: deixa orbitar
+  const h = acertos[0].point;
+  // o arrasto acontece num plano paralelo ao chão da junta, na profundidade do clique
+  planoPega.set(new THREE.Vector3(0, 1, 0), -h.y);
+  simulacao.agarrar({ x: h.x, z: h.z });
+  pegando = true;
+  controles.enabled = false;
+  try { tela.setPointerCapture(e.pointerId); } catch (_) { /* toque sintético não tem ponteiro ativo */ }
+});
+tela.addEventListener('pointermove', (e) => {
+  if (!pegando || !simulacao) return;
+  const p = pontoDoMouse(e);
+  if (p) simulacao.arrastar({ x: p.x, z: p.z });
+});
+for (const ev of ['pointerup', 'pointercancel']) {
+  tela.addEventListener(ev, () => {
+    if (!pegando) return;
+    pegando = false;
+    if (simulacao) simulacao.soltar();
+    controles.enabled = true;
+  });
+}
 
 // ---------------- mensagens ----------------
 const elMensagem = $('#mensagem');
@@ -228,15 +311,23 @@ function reconstruir() {
       furoNaDireita: estado.furoNaDireita,
       borda: estado.borda,
       folgaArticulacao: estado.folga,
+      folgaVertical: estado.folgaV,
       giroArticulacao: estado.giro,
-      alturaBloco: estado.alturaBloco,
+      tamanhoBloco: estado.tamanhoBloco,
+      espessuraBloco: estado.espessuraBloco,
       arredondamento: estado.arredondamento,
+      furoBloco: estado.furoBloco,
+      furoX: estado.furoX,
+      furoY: estado.furoY,
+      furoDiametro: estado.furoDiamCorrente,
     });
 
     if (grupoAtual) { cena.remove(grupoAtual); descartarGrupo(grupoAtual); }
     grupoAtual = r.grupo;
     resultadoAtual = r;
     cena.add(grupoAtual);
+    // se a bancada de teste estiver ligada, a peça nova ja nasce com fisica
+    simulacao = (fisicaLigada && r.temTexto) ? criarSimulacao({ THREE, resultado: r }) : (fisicaLigada ? null : simulacao);
 
     construirGrade(Math.max(50, Math.max(r.largura, r.altura) * 1.9));
     enquadrar();
@@ -254,9 +345,16 @@ function reconstruir() {
       botao.classList.remove('desligado');
       botao.removeAttribute('aria-disabled');
       const n = (v) => v.toFixed(0).replace('.', ',');
-      const blocos = r.blocos ? `  ·  ${r.blocos} bloquinhos` : '';
-      $('#medidas').textContent =
-        `${n(r.largura)} × ${n(r.altura)} × ${r.alturaTotal.toFixed(1).replace('.', ',')} mm${blocos}`;
+      if (estado.estilo === 'articulado') {
+        // na correntinha o que importa é o comprimento montado, para conferir
+        // antes de imprimir
+        $('#medidas').textContent =
+          `Comprimento total: ${r.largura.toFixed(1).replace('.', ',')} mm  ·  ` +
+          `${r.blocos} bloquinhos de ${n(r.altura)} × ${r.alturaTotal.toFixed(1).replace('.', ',')} mm`;
+      } else {
+        $('#medidas').textContent =
+          `${n(r.largura)} × ${n(r.altura)} × ${r.alturaTotal.toFixed(1).replace('.', ',')} mm`;
+      }
     }
     mostrarMensagem(avisoFixo, avisoFixo ? 'aviso' : '');
   } catch (erro) {
@@ -303,23 +401,42 @@ grupoBotoes('.grade-opcoes[aria-labelledby="rot-tamanho"]', 'tamanho', (v) => {
   $('#val-tamanho').textContent = `${estado.tamanhoLetra} mm`;
 });
 
+function linhasDoFuro() {
+  const correntinha = estado.estilo === 'articulado';
+  // nos estilos com placa: tamanho, borda, recuo e lado
+  for (const id of ['#linha-furo', '#linha-parede', '#linha-recuo', '#linha-lado']) {
+    $(id).hidden = !estado.comFuro || correntinha;
+  }
+  // na correntinha: em qual bloco e a posição livre, em coordenadas
+  for (const id of ['#linha-furo-bloco', '#linha-furo-x', '#linha-furo-y', '#linha-furo-diam']) {
+    $(id).hidden = !estado.comFuro || !correntinha;
+  }
+}
+
 function visibilidadePorEstilo() {
   const soLetras = estado.estilo === 'letras';
   const correntinha = estado.estilo === 'articulado';
 
   $('#linha-borda').hidden = estado.estilo !== 'sombra';
   $('#linha-folga').hidden = !correntinha;
+  $('#linha-folga-v').hidden = !correntinha;
   $('#linha-giro').hidden = !correntinha;
   $('#linha-altura').hidden = !correntinha;
   $('#linha-arred').hidden = !correntinha;
+  // na correntinha o tamanho é em milímetros de bloco, não em Pequeno/Médio/Grande:
+  // a letra sai do bloco, o bloco não sai da letra
+  $('.grade-opcoes[aria-labelledby="rot-tamanho"]').hidden = correntinha;
+  $('#op-tamanho').closest('.deslizante').hidden = correntinha;
+  $('#linha-bloco').hidden = !correntinha;
   // o relevo só existe onde há placa por baixo do texto
   $('#linha-relevo').hidden = soLetras;
   // na correntinha cada letra tem seu bloquinho, então espaçar não faz sentido
   $('#op-espaco').closest('.deslizante').hidden = correntinha;
   // no só-letras não existe "base": a espessura é a da peça inteira
   $('#rot-espessura').textContent = soLetras ? 'Espessura da peça' : 'Espessura da base';
-  // na correntinha o bloco é um cubo: a altura sai do tamanho da letra
+  // na correntinha a espessura tem controle próprio (Espessura do bloco)
   $('#op-espessura').closest('.deslizante').hidden = correntinha;
+  linhasDoFuro();
 }
 
 function marcarTamanhoPreset() {
@@ -354,8 +471,22 @@ ligarDeslizante('#op-proporcao', '#val-proporcao', (v) => { estado.proporcao = v
 ligarDeslizante('#op-traco', '#val-traco', (v) => { estado.traco = v; },
   (v) => (v === 0 ? 'normal' : (v > 0 ? '+' : '') + (v / 10).toString().replace('.', ',') + ' mm'));
 ligarDeslizante('#op-folga', '#val-folga', (v) => { estado.folga = v; }, mm);
+ligarDeslizante('#op-folga-v', '#val-folga-v', (v) => { estado.folgaV = v; }, mm);
 ligarDeslizante('#op-giro', '#val-giro', (v) => { estado.giro = v; }, (v) => `${v}°`);
-ligarDeslizante('#op-altura', '#val-altura', (v) => { estado.alturaBloco = v; }, mm);
+// o tamanho do bloco manda em tudo: mudar o bloco reescala a espessura junto,
+// proporcionalmente — as folgas e o furo da argola ficam como estão
+ligarDeslizante('#op-bloco', '#val-bloco', (v) => {
+  const razao = v / estado.tamanhoBloco;
+  estado.tamanhoBloco = v;
+  estado.espessuraBloco = Math.round(estado.espessuraBloco * razao * 4) / 4;
+  $('#op-altura').value = estado.espessuraBloco;
+  $('#val-altura').textContent = mm(estado.espessuraBloco);
+}, mm);
+ligarDeslizante('#op-altura', '#val-altura', (v) => { estado.espessuraBloco = v; }, mm);
+ligarDeslizante('#op-furo-bloco', '#val-furo-bloco', (v) => { estado.furoBloco = v; }, (v) => `${v}º`);
+ligarDeslizante('#op-furo-x', '#val-furo-x', (v) => { estado.furoX = v; }, mm);
+ligarDeslizante('#op-furo-y', '#val-furo-y', (v) => { estado.furoY = v; }, mm);
+ligarDeslizante('#op-furo-diam', '#val-furo-diam', (v) => { estado.furoDiamCorrente = v; }, mm);
 ligarDeslizante('#op-arred', '#val-arred', (v) => { estado.arredondamento = v; }, (v) => `${v}%`);
 ligarDeslizante('#op-borda', '#val-borda', (v) => { estado.borda = v; }, mm);
 ligarDeslizante('#op-diametro', '#val-diametro', (v) => { estado.diametroFuro = v; }, mm);
@@ -374,9 +505,7 @@ $('#op-lado').addEventListener('click', () => {
 $('#op-furo').addEventListener('click', () => {
   estado.comFuro = !estado.comFuro;
   $('#op-furo').setAttribute('aria-checked', estado.comFuro ? 'true' : 'false');
-  for (const id of ['#linha-furo', '#linha-parede', '#linha-recuo', '#linha-lado']) {
-    $(id).hidden = !estado.comFuro;
-  }
+  linhasDoFuro();
   reconstruir();
 });
 
@@ -387,9 +516,15 @@ $('#restaurar').addEventListener('click', () => {
   $('#op-proporcao').value = PADRAO.proporcao; $('#val-proporcao').textContent = '100%';
   $('#op-traco').value = PADRAO.traco; $('#val-traco').textContent = 'normal';
   $('#op-folga').value = PADRAO.folga; $('#val-folga').textContent = mm(PADRAO.folga);
+  $('#op-folga-v').value = PADRAO.folgaV; $('#val-folga-v').textContent = mm(PADRAO.folgaV);
   $('#op-giro').value = PADRAO.giro; $('#val-giro').textContent = `${PADRAO.giro}°`;
-  $('#op-altura').value = PADRAO.alturaBloco; $('#val-altura').textContent = mm(PADRAO.alturaBloco);
+  $('#op-bloco').value = PADRAO.tamanhoBloco; $('#val-bloco').textContent = mm(PADRAO.tamanhoBloco);
+  $('#op-altura').value = PADRAO.espessuraBloco; $('#val-altura').textContent = mm(PADRAO.espessuraBloco);
   $('#op-arred').value = PADRAO.arredondamento; $('#val-arred').textContent = `${PADRAO.arredondamento}%`;
+  $('#op-furo-bloco').value = PADRAO.furoBloco; $('#val-furo-bloco').textContent = `${PADRAO.furoBloco}º`;
+  $('#op-furo-x').value = PADRAO.furoX; $('#val-furo-x').textContent = mm(PADRAO.furoX);
+  $('#op-furo-y').value = PADRAO.furoY; $('#val-furo-y').textContent = mm(PADRAO.furoY);
+  $('#op-furo-diam').value = PADRAO.furoDiamCorrente; $('#val-furo-diam').textContent = mm(PADRAO.furoDiamCorrente);
   $('#op-borda').value = PADRAO.borda; $('#val-borda').textContent = mm(PADRAO.borda);
   $('#op-diametro').value = PADRAO.diametroFuro; $('#val-diametro').textContent = mm(PADRAO.diametroFuro);
   $('#op-parede').value = PADRAO.paredeFuro; $('#val-parede').textContent = mm(PADRAO.paredeFuro);
@@ -399,7 +534,6 @@ $('#restaurar').addEventListener('click', () => {
   $('#op-espessura').value = PADRAO.espessura; $('#val-espessura').textContent = mm(PADRAO.espessura);
   $('#op-relevo').value = PADRAO.relevo; $('#val-relevo').textContent = mm(PADRAO.relevo);
   $('#op-furo').setAttribute('aria-checked', 'true');
-  for (const id of ['#linha-furo', '#linha-parede', '#linha-recuo', '#linha-lado']) $(id).hidden = false;
   for (const b of $('.grade-opcoes[aria-labelledby="rot-estilo"] .cartao')) {
     const ativo = b.dataset.estilo === PADRAO.estilo;
     b.classList.toggle('ativo', ativo);
@@ -646,6 +780,7 @@ if (new URLSearchParams(location.search).has('debug')) {
   window.__debug = {
     renderer, cena, camera, controles, estado,
     resultado: () => resultadoAtual,
+    fisica: () => ({ ligada: fisicaLigada, sim: simulacao, pegando }),
     capturar: () => { controles.update(); renderer.render(cena, camera); return tela.toDataURL('image/png'); },
   };
 }
