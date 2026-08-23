@@ -25,6 +25,7 @@ const PADRAO = {
   proporcao: 100,
   borda: 2.5,
   traco: 0,
+  folga: 0.4,
   comFuro: true,
   diametroFuro: 5,
   espessura: 3,
@@ -217,6 +218,7 @@ function reconstruir() {
       comFuro: estado.comFuro,
       diametroFuro: estado.diametroFuro,
       borda: estado.borda,
+      folgaArticulacao: estado.folga,
     });
 
     if (grupoAtual) { cena.remove(grupoAtual); descartarGrupo(grupoAtual); }
@@ -240,8 +242,9 @@ function reconstruir() {
       botao.classList.remove('desligado');
       botao.removeAttribute('aria-disabled');
       const n = (v) => v.toFixed(0).replace('.', ',');
+      const blocos = r.blocos ? `  ·  ${r.blocos} bloquinhos` : '';
       $('#medidas').textContent =
-        `${n(r.largura)} × ${n(r.altura)} × ${r.alturaTotal.toFixed(1).replace('.', ',')} mm`;
+        `${n(r.largura)} × ${n(r.altura)} × ${r.alturaTotal.toFixed(1).replace('.', ',')} mm${blocos}`;
     }
     mostrarMensagem(avisoFixo, avisoFixo ? 'aviso' : '');
   } catch (erro) {
@@ -289,10 +292,15 @@ grupoBotoes('.grade-opcoes[aria-labelledby="rot-tamanho"]', 'tamanho', (v) => {
 });
 
 function visibilidadePorEstilo() {
-  $('#linha-borda').hidden = estado.estilo !== 'sombra';
-  // o relevo só existe onde há placa por baixo do texto
   const soLetras = estado.estilo === 'letras';
+  const correntinha = estado.estilo === 'articulado';
+
+  $('#linha-borda').hidden = estado.estilo !== 'sombra';
+  $('#linha-folga').hidden = !correntinha;
+  // o relevo só existe onde há placa por baixo do texto
   $('#linha-relevo').hidden = soLetras;
+  // na correntinha cada letra tem seu bloquinho, então espaçar não faz sentido
+  $('#op-espaco').closest('.deslizante').hidden = correntinha;
   // no só-letras não existe "base": a espessura é a da peça inteira
   $('#rot-espessura').textContent = soLetras ? 'Espessura da peça' : 'Espessura da base';
 }
@@ -328,6 +336,7 @@ ligarDeslizante('#op-proporcao', '#val-proporcao', (v) => { estado.proporcao = v
   (v) => `${v}%`);
 ligarDeslizante('#op-traco', '#val-traco', (v) => { estado.traco = v; },
   (v) => (v === 0 ? 'normal' : (v > 0 ? '+' : '') + (v / 10).toString().replace('.', ',') + ' mm'));
+ligarDeslizante('#op-folga', '#val-folga', (v) => { estado.folga = v; }, mm);
 ligarDeslizante('#op-borda', '#val-borda', (v) => { estado.borda = v; }, mm);
 ligarDeslizante('#op-diametro', '#val-diametro', (v) => { estado.diametroFuro = v; }, mm);
 ligarDeslizante('#op-espessura', '#val-espessura', (v) => { estado.espessura = v; }, mm);
@@ -346,6 +355,7 @@ $('#restaurar').addEventListener('click', () => {
   $('#op-espaco').value = PADRAO.espaco; $('#val-espaco').textContent = '0';
   $('#op-proporcao').value = PADRAO.proporcao; $('#val-proporcao').textContent = '100%';
   $('#op-traco').value = PADRAO.traco; $('#val-traco').textContent = 'normal';
+  $('#op-folga').value = PADRAO.folga; $('#val-folga').textContent = mm(PADRAO.folga);
   $('#op-borda').value = PADRAO.borda; $('#val-borda').textContent = mm(PADRAO.borda);
   $('#op-diametro').value = PADRAO.diametroFuro; $('#val-diametro').textContent = mm(PADRAO.diametroFuro);
   $('#op-espessura').value = PADRAO.espessura; $('#val-espessura').textContent = mm(PADRAO.espessura);

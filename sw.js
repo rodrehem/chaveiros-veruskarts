@@ -4,7 +4,7 @@
 // AO ALTERAR QUALQUER ARQUIVO DE site/, TROQUE O NÚMERO DA VERSÃO ABAIXO.
 // Sem isso, quem já abriu o site continua vendo a versão antiga.
 
-const VERSAO = 'chaveiros-v11';
+const VERSAO = 'chaveiros-v12';
 
 // Sem estes arquivos o aplicativo não funciona: se algum falhar, a instalação
 // do cache falha e tentamos de novo na próxima visita.

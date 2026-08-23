@@ -92,6 +92,20 @@
           </svg>
           <span>Só letras</span>
         </button>
+        <button type="button" class="cartao" data-estilo="articulado" aria-pressed="false">
+          <svg viewBox="0 0 64 30" aria-hidden="true">
+            <circle cx="6" cy="15" r="4" fill="none" stroke="currentColor" stroke-width="2.2"/>
+            <rect x="11" y="7" width="15" height="16" rx="2" class="peca"/>
+            <rect x="29" y="7" width="15" height="16" rx="2" class="peca"/>
+            <rect x="47" y="7" width="15" height="16" rx="2" class="peca"/>
+            <circle cx="27.5" cy="15" r="2.6" fill="currentColor"/>
+            <circle cx="45.5" cy="15" r="2.6" fill="currentColor"/>
+            <rect x="15" y="12" width="7" height="6" rx="1" class="marca-texto"/>
+            <rect x="33" y="12" width="7" height="6" rx="1" class="marca-texto"/>
+            <rect x="51" y="12" width="7" height="6" rx="1" class="marca-texto"/>
+          </svg>
+          <span>Correntinha</span>
+        </button>
       </div>
     </div>
 
@@ -132,6 +146,10 @@
       <div class="deslizante">
         <label for="op-traco">Espessura do traço <output id="val-traco">normal</output></label>
         <input type="range" id="op-traco" min="-4" max="15" step="1" value="0">
+      </div>
+      <div class="deslizante" id="linha-folga" hidden>
+        <label for="op-folga">Folga da articulação <output id="val-folga">0,4 mm</output></label>
+        <input type="range" id="op-folga" min="0.2" max="0.8" step="0.05" value="0.4">
       </div>
       <div class="deslizante" id="linha-borda" hidden>
         <label for="op-borda">Largura da borda <output id="val-borda">2,5 mm</output></label>
