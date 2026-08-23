@@ -59,17 +59,25 @@ export function criarSimulacao({ THREE, resultado }) {
   if (resultado.articulacao) {
     const a = resultado.articulacao;
     const n = resultado.blocos;
-    // a argola externa faz parte do primeiro bloco: o corpo dele fica mais
-    // comprido para ela não atravessar o chão quando o bloco tomba
-    const ext = a.argola ? a.argola.extensao : 0;
-    const L = n * a.W + (n - 1) * a.vao + ext;
-    const x0Bloco = (i) => -L / 2 + ext + i * a.passo;   // face esquerda do bloco i
+    // a argola externa faz parte de um bloco: quando fica numa face lateral,
+    // o corpo daquele bloco fica mais comprido no plano da física para ela
+    // não atravessar o chão quando o bloco tomba. Em cima ou embaixo ela sai
+    // do plano da simulação e não muda a silhueta.
+    const arg = a.argola;
+    // a MESMA centralização do gerador, senão os corpos nascem deslocados da malha
+    const xa0 = arg ? arg.bloco * a.passo + arg.cx - arg.rExt : 0;
+    const xa1 = arg ? arg.bloco * a.passo + arg.cx + arg.rExt : 0;
+    const xMinL = Math.min(0, xa0);
+    const xMaxL = Math.max((n - 1) * a.passo + a.W, xa1);
+    const desloca = -(xMinL + xMaxL) / 2;
+    const x0Bloco = (i) => desloca + i * a.passo;           // face esquerda do bloco i
     for (let i = 0; i < n; i++) {
-      if (i === 0 && ext) {
-        corpos.push(novoCorpo(x0Bloco(0) + (a.W - ext) / 2, a.H / 2, a.W + ext, a.H));
-      } else {
-        corpos.push(novoCorpo(x0Bloco(i) + a.W / 2, a.H / 2, a.W, a.H));
+      let c0 = x0Bloco(i) + a.W / 2, w0 = a.W;
+      if (arg && i === arg.bloco) {
+        if (arg.face === 'esquerda') { c0 -= arg.extensao / 2; w0 += arg.extensao; }
+        if (arg.face === 'direita') { c0 += arg.extensao / 2; w0 += arg.extensao; }
       }
+      corpos.push(novoCorpo(c0, a.H / 2, w0, a.H));
     }
     for (let i = 0; i + 1 < n; i++) {
       // o pino fica no meio do vão, na altura do eixo

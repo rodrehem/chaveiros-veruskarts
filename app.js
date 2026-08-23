@@ -414,14 +414,12 @@ function linhasDoFuro() {
   }
   // a argola externa é só da correntinha
   $('#linha-argola-ext').hidden = semFuro || !correntinha;
-  // posição livre (X/Y): em TODOS os estilos; na correntinha só quando a
-  // argola externa está desligada (a argola tem lugar fixo, na ponta)
-  const livre = correntinha ? !estado.argolaExterna : true;
-  for (const id of ['#linha-furo-x', '#linha-furo-y']) {
-    $(id).hidden = semFuro || !livre;
+  // posição livre (X/Y): em TODOS os estilos — na correntinha os mesmos
+  // ajustes movem a argola externa pela volta do bloco, ou o furo no corpo
+  for (const id of ['#linha-furo-x', '#linha-furo-y', ...(correntinha ? ['#linha-furo-bloco'] : [])]) {
+    $(id).hidden = semFuro;
   }
-  // em qual bloco: só da correntinha com furo no corpo
-  $('#linha-furo-bloco').hidden = semFuro || !correntinha || estado.argolaExterna;
+  if (!correntinha) $('#linha-furo-bloco').hidden = true;
   // diâmetro próprio da correntinha (nos outros estilos vale o Tamanho do furo)
   $('#linha-furo-diam').hidden = semFuro || !correntinha;
 }

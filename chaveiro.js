@@ -234,83 +234,89 @@ function montarNaGrade(op) {
   const ligado = ligarPedacos(mapa, grade, larguraPonte);
   mapa = ligado.mapa;
 
-  // Argola: encosta um disco na tinta, garantindo que ele fique grudado na
-  // peça de verdade (e não só perto dela). Sem deslocamento, vai para o ponto
-  // de tinta mais à esquerda (ou à direita). Com deslocamento (X/Y), o anel
-  // desliza pela silhueta: procura o ponto de tinta mais perto do lugar pedido
-  // e encosta ali, saindo para fora na direção local. Empurrado para dentro da
-  // tinta, ele vira um furo interno com o próprio anel de parede.
+  // Argola: um anel encostado por FORA da silhueta, deslizando por ela.
+  //
+  // A regra dura é que o FURO nunca entra na tinta — em letra cursiva o método
+  // antigo (direção a partir do centro da peça) errava a normal em qualquer
+  // reentrância e o anel afundava no traço. Agora:
+  //   1. os candidatos são os pontos da BORDA da tinta, do mais perto ao mais
+  //      longe do lugar pedido;
+  //   2. a direção de saída é a normal local de verdade, lida do gradiente do
+  //      campo de distância;
+  //   3. o anel morde a peça só o suficiente para soldar, e o candidato é
+  //      DESCARTADO se sobrar tinta dentro do furo ou coladinha nele.
+  // O primeiro candidato limpo ganha. Furo dentro da peça não existe mais.
   let furo = null;
   const avisosFuro = [];
   if (comFuro) {
-    const comAlvo = Math.abs(furoX) > 0.01 || Math.abs(furoY) > 0.01;
-    let px = null, py = null;
-    if (!comAlvo) {
-      let melhorI = furoNaDireita ? -1 : grade.larg, melhorJ = -1;
-      for (let j = 0; j < grade.alt; j++) {
-        if (furoNaDireita) {
-          for (let i = grade.larg - 1; i >= 0; i--) {
-            if (mapa[j * grade.larg + i]) {
-              if (i > melhorI) { melhorI = i; melhorJ = j; }
-              break;
-            }
-          }
-        } else {
-          for (let i = 0; i < grade.larg; i++) {
-            if (mapa[j * grade.larg + i]) {
-              if (i < melhorI) { melhorI = i; melhorJ = j; }
-              break;
-            }
-          }
-        }
-      }
-      if (melhorJ >= 0) {
-        px = grade.x0 + (melhorI + 0.5) * grade.celula;
-        py = grade.y0 + (melhorJ + 0.5) * grade.celula;
-        const entrada = ehSombra ? 0.5 : 0.76;
-        px += furoNaDireita ? raioAnel * entrada : -raioAnel * entrada;
-      }
-    } else {
-      // centro da tinta e ponto de tinta mais próximo do alvo pedido
-      let somaX = 0, somaY = 0, tinta = 0;
-      let pertoI = -1, pertoJ = -1, pertoD = Infinity;
-      const alvoX = caixa.x0 + caixa.largura / 2 + furoX;
-      const alvoY = caixa.y0 + caixa.altura / 2 + furoY;
-      for (let j = 0; j < grade.alt; j += 2) {
-        for (let i = 0; i < grade.larg; i += 2) {
-          if (!mapa[j * grade.larg + i]) continue;
-          const wx = grade.x0 + (i + 0.5) * grade.celula;
-          const wy = grade.y0 + (j + 0.5) * grade.celula;
-          somaX += wx; somaY += wy; tinta++;
-          const d = Math.hypot(wx - alvoX, wy - alvoY);
-          if (d < pertoD) { pertoD = d; pertoI = i; pertoJ = j; }
-        }
-      }
-      if (pertoJ >= 0) {
-        const wx = grade.x0 + (pertoI + 0.5) * grade.celula;
-        const wy = grade.y0 + (pertoJ + 0.5) * grade.celula;
-        if (pertoD < 0.01 + grade.celula * 2) {
-          // o alvo está em cima da tinta: furo interno, com o anel garantindo a parede
-          px = alvoX; py = alvoY;
-        } else {
-          // o alvo está fora: encosta o anel na silhueta, saindo para fora
-          const cxT = somaX / tinta, cyT = somaY / tinta;
-          let dx = wx - cxT, dy = wy - cyT;
-          const d = Math.hypot(dx, dy) || 1;
-          dx /= d; dy /= d;
-          const entrada = ehSombra ? 0.5 : 0.76;
-          px = wx + dx * raioAnel * entrada;
-          py = wy + dy * raioAnel * entrada;
-          if (pertoD > raioAnel * 3) {
-            avisosFuro.push('Encostei a argola no ponto da peça mais perto de onde você pediu.');
-          }
-        }
+    const { larg, alt, celula, x0, y0 } = grade;
+    const sdfPeca = campoDistancia(mapa, grade);
+    const alvoX = (Math.abs(furoX) > 0.01 || Math.abs(furoY) > 0.01)
+      ? caixa.x0 + caixa.largura / 2 + furoX
+      : (furoNaDireita ? caixa.x0 + caixa.largura + 60 : caixa.x0 - 60);
+    const alvoY = (Math.abs(furoX) > 0.01 || Math.abs(furoY) > 0.01)
+      ? caixa.y0 + caixa.altura / 2 + furoY
+      : caixa.y0 + caixa.altura / 2;
+
+    // pontos de borda (tinta com vizinho vazio), do mais perto do alvo em diante
+    const borda = [];
+    for (let j = 1; j < alt - 1; j += 2) {
+      for (let i = 1; i < larg - 1; i += 2) {
+        const k = j * larg + i;
+        if (!mapa[k]) continue;
+        if (mapa[k - 1] && mapa[k + 1] && mapa[k - larg] && mapa[k + larg]) continue;
+        const wx = x0 + (i + 0.5) * celula;
+        const wy = y0 + (j + 0.5) * celula;
+        borda.push([Math.hypot(wx - alvoX, wy - alvoY), wx, wy, i, j]);
       }
     }
-    if (px !== null) {
-      pintarDisco(mapa, grade, px, py, raioAnel, 1);
-      pintarDisco(mapa, grade, px, py, raioFuro, 0);
-      furo = { x: px, y: py, raio: raioFuro };
+    borda.sort((a, b) => a[0] - b[0]);
+
+    const mordidaAnel = Math.min(raioAnel * 0.5, raioAnel - raioFuro - 0.5);
+    const temTintaPerto = (cx, cy, r) => {
+      const i0 = Math.max(0, Math.floor((cx - r - x0) / celula));
+      const i1 = Math.min(larg - 1, Math.ceil((cx + r - x0) / celula));
+      const j0 = Math.max(0, Math.floor((cy - r - y0) / celula));
+      const j1 = Math.min(alt - 1, Math.ceil((cy + r - y0) / celula));
+      const r2 = r * r;
+      for (let j = j0; j <= j1; j++) {
+        const wy = y0 + (j + 0.5) * celula;
+        for (let i = i0; i <= i1; i++) {
+          if (!mapa[j * larg + i]) continue;
+          const wx = x0 + (i + 0.5) * celula;
+          if ((wx - cx) * (wx - cx) + (wy - cy) * (wy - cy) <= r2) return true;
+        }
+      }
+      return false;
+    };
+    const lerSdf = (i, j) => sdfPeca[Math.max(0, Math.min(alt - 1, j)) * larg + Math.max(0, Math.min(larg - 1, i))];
+
+    let escolhido = null;
+    const olhar = Math.min(borda.length, 6000);
+    for (let n = 0; n < olhar && !escolhido; n++) {
+      const [, wx, wy, i, j] = borda[n];
+      // normal local para fora, pelo gradiente do campo de distância
+      let gx = lerSdf(i + 2, j) - lerSdf(i - 2, j);
+      let gy = lerSdf(i, j + 2) - lerSdf(i, j - 2);
+      const g = Math.hypot(gx, gy);
+      if (g < 1e-6) continue;
+      gx /= g; gy /= g;
+      const cx = wx + gx * (raioAnel - mordidaAnel);
+      const cy = wy + gy * (raioAnel - mordidaAnel);
+      // o furo tem de sair limpo: nada de tinta dentro dele nem raspando
+      if (temTintaPerto(cx, cy, raioFuro + 0.35)) continue;
+      escolhido = { cx, cy, dist: borda[n][0] };
+    }
+
+    if (escolhido) {
+      pintarDisco(mapa, grade, escolhido.cx, escolhido.cy, raioAnel, 1);
+      pintarDisco(mapa, grade, escolhido.cx, escolhido.cy, raioFuro, 0);
+      furo = { x: escolhido.cx, y: escolhido.cy, raio: raioFuro };
+      if ((Math.abs(furoX) > 0.01 || Math.abs(furoY) > 0.01) && escolhido.dist > raioAnel * 3) {
+        avisosFuro.push('Encostei a argola no ponto limpo da peça mais perto de onde você pediu.');
+      }
+    } else if (borda.length) {
+      avisosFuro.push('Não achei lugar para a argola sem furar as letras. Ficou sem furo — diminua o furo da argola.');
     }
   }
 
@@ -478,13 +484,27 @@ function perfilCorpo(op) {
 
 // Perfil visto DE LADO (plano XZ) de uma peça que termina em semicírculo com o
 // centro no eixo do pino. Serve para o braço do encaixe e para o pescoço.
-function perfilDeLado(xRaiz, xPino, raio, rFuro) {
+//
+// xDegrau: até onde o fundo fica ERGUIDO 0,03 mm. O trecho de raiz fica
+// enterrado no corpo do bloco, e se o fundo dele ficasse no mesmo plano z=0 do
+// fundo do bloco, as duas faces coincidentes brigariam na tela e no STL. O
+// degrau acaba 0,02 mm depois da face do bloco, já no vão, onde 0,03 mm no ar
+// não significam nada.
+function perfilDeLado(xRaiz, xPino, raio, rFuro, xDegrau) {
+  // atenção ao espelho: o rotateX(-90°) manda o y do perfil para -z do mundo,
+  // então a borda +raio do perfil é o FUNDO da peça no mundo
   const paraDireita = xPino > xRaiz;
   const f = new THREE.Shape();
   f.moveTo(xRaiz, -raio);
   f.lineTo(xPino, -raio);
   f.absarc(xPino, 0, raio, -Math.PI / 2, Math.PI / 2, !paraDireita);
-  f.lineTo(xRaiz, raio);
+  if (xDegrau !== undefined) {
+    f.lineTo(xDegrau, raio);
+    f.lineTo(xDegrau, raio - 0.03);
+    f.lineTo(xRaiz, raio - 0.03);
+  } else {
+    f.lineTo(xRaiz, raio);
+  }
   f.lineTo(xRaiz, -raio);
   if (rFuro > 0) {
     const h = new THREE.Path();
@@ -688,8 +708,10 @@ function montarArticulado(op) {
   const yPescoco = larguraPescoco / 2;
   const yBracoDe = yPescoco + folgaRadial;
   const yBracoAte = yBracoDe + espBraco;
-  const compPino = yBracoAte * 2;                    // atravessa os dois braços
-  const mordidaYDe = yBracoDe - folgaRadial;
+  // atravessa os dois braços, parando 0,03 mm antes de cada face externa: rente
+  // de verdade, mas sem a tampa do pino no MESMO plano da face do braço
+  const compPino = yBracoAte * 2 - 0.06;
+  const mordidaYDe = yBracoDe - folgaRadial - 0.03;
   const mordidaYAte = yBracoAte + folgaRadial;
   // a asa passa do braço pela folga inteira: a ponta do pino é rente à face
   // externa do braço, e a parede da asa não pode chegar a menos de um bico dela
@@ -708,7 +730,9 @@ function montarArticulado(op) {
   // o braço e o pescoço passam da face do vizinho; entram pela mordida e pela boca
   const mordida = Math.max(0, rBraco - dp + folgaRadial);
   const boca = Math.max(0, rPescoco - dp + folgaRadial);
-  const bocaMeia = yPescoco + folgaRadial;
+  // os +0,03 tiram as paredes destes recortes dos planos exatos das tampas do
+  // braço e do pescoço — faces coincidentes brigam na tela e no STL
+  const bocaMeia = yPescoco + folgaRadial + 0.03;
   // asas da boca: alívio raso na faixa dos braços, para a ponta do pino — que
   // invade a face quando o pino é mais gordo que o vão — não encostar no corpo
   const asaFundo = Math.max(0, rPino + folgaRadial - dp);
@@ -734,16 +758,50 @@ function montarArticulado(op) {
     poligonosDoTexto(fonte, ch, tamanho, espaco, proporcao, curvasLetra));
 
   // ---- argola externa ----
-  // Um anel redondo de verdade, saindo da lateral do primeiro bloco, com a
-  // mesma espessura e o mesmo chanfro dele. Ele entra um pouco no corpo para o
-  // fatiador fundir os dois; a parede em volta do furo nunca fica menor que a
-  // parede mínima da argola.
+  // Um anel redondo de verdade, encostado por FORA do bloco escolhido. Os
+  // ajustes X e Y dizem de que lado e em que ponto: o lado vem da direção
+  // dominante, a posição desliza ao longo daquela face. Lados ocupados pela
+  // junta não valem: a face direita tem o garfo (menos no último bloco) e a
+  // esquerda tem pescoço e mordidas (menos no primeiro) — nesses casos a
+  // argola vai para cima ou para baixo, com aviso.
   let argola = null;
   if (comFuro && argolaExterna) {
     const paredeArg = Math.max(PAREDE_FURO_ARGOLA + 1.4 * e, 2.4 * e);
     const rExt = raioFuroArgola + paredeArg;
     const entradaArg = 1.4 * e;                      // o quanto o anel entra no bloco
-    argola = { cx: -rExt + entradaArg, cy: 0, rExt, rFuro: raioFuroArgola };
+    const bloco = Math.min(Math.max(1, Math.round(furoBloco)), letras.length) - 1;
+
+    let face;
+    if (Math.abs(furoY) > Math.abs(furoX) && Math.abs(furoY) > 0.01) {
+      face = furoY > 0 ? 'cima' : 'baixo';
+    } else if (furoX > 0.01) {
+      face = 'direita';
+    } else {
+      face = 'esquerda';
+    }
+    if (face === 'esquerda' && bloco !== 0) {
+      face = furoY >= 0 ? 'cima' : 'baixo';
+      avisos.push('Desse lado do bloco fica a junta. Pus a argola na face de ' + face + '.');
+    }
+    if (face === 'direita' && bloco !== letras.length - 1) {
+      face = furoY >= 0 ? 'cima' : 'baixo';
+      avisos.push('Desse lado do bloco fica a junta. Pus a argola na face de ' + face + '.');
+    }
+
+    // quanto a lente de solda ocupa da face, para o anel não escorregar do canto
+    const meiaLente = Math.sqrt(Math.max(0, rExt * rExt - (rExt - entradaArg) * (rExt - entradaArg)));
+    const percurso = Math.max(0, W / 2 - meiaLente - 0.6);
+    const prender = (v) => Math.max(-percurso, Math.min(percurso, v));
+    let cx, cy;
+    if (face === 'esquerda') { cx = -rExt + entradaArg; cy = prender(furoY); }
+    else if (face === 'direita') { cx = W + rExt - entradaArg; cy = prender(furoY); }
+    else if (face === 'cima') { cy = W / 2 + rExt - entradaArg; cx = W / 2 + prender(furoX); }
+    else { cy = -W / 2 - rExt + entradaArg; cx = W / 2 + prender(furoX); }
+
+    argola = {
+      bloco, face, cx, cy, rExt, rFuro: raioFuroArgola,
+      extensao: rExt * 2 - entradaArg,
+    };
   }
 
   const passo = W + vao;
@@ -831,49 +889,59 @@ function montarArticulado(op) {
     corpo.translate(0, 0, CHANFRO_BASE - 0.02);
     partes.push(marcar(corpo, 'corpo', i));
 
-    // argola externa: anel redondo colado na lateral do primeiro bloco, com o
-    // mesmo chanfro e a mesma espessura dele
-    if (argola && i === 0) {
+    // argola externa: anel redondo colado no bloco escolhido, com o mesmo
+    // chanfro e quase a mesma espessura. Ela sobe 0,02 mm e para 0,03 mm antes
+    // do topo de propósito: onde o anel entra no bloco, fundo com fundo e topo
+    // com topo no MESMO plano brigariam na tela e no STL — planos distintos,
+    // e a solda fica por conta das paredes que se atravessam.
+    if (argola && i === argola.bloco) {
       const fa = new THREE.Shape();
       fa.absarc(argola.cx, argola.cy, argola.rExt, 0, Math.PI * 2, false);
       const furoA = new THREE.Path();
       furoA.absarc(argola.cx, argola.cy, argola.rFuro, 0, Math.PI * 2, true);
       fa.holes.push(furoA);
-      partes.push(marcar(chanfroDaBase(fa, 32), 'chanfro', 0));
+      const chA = chanfroDaBase(fa, 32);
+      chA.translate(0, 0, 0.02);
+      partes.push(marcar(chA, 'argola', i));
       const anel = new THREE.ExtrudeGeometry([fa], {
-        depth: H - (CHANFRO_BASE - 0.02), bevelEnabled: false, curveSegments: 32,
+        depth: H - CHANFRO_BASE - 0.09, bevelEnabled: false, curveSegments: 32,
       });
-      anel.translate(0, 0, CHANFRO_BASE - 0.02);
-      partes.push(marcar(anel, 'argola', 0));
+      anel.translate(0, 0, CHANFRO_BASE + 0.04);
+      partes.push(marcar(anel, 'argola', i));
       furo = { x: x0 + argola.cx, y: argola.cy, raio: argola.rFuro };
     }
 
     // tetos: fecham a mordida e a boca acima da junta, deixando folga vertical
     // sobre o braço e o pescoço do vizinho. Entram 0,3 mm pelo material maciço
     // para o fatiador fundir sem parede coincidente.
+    // Nenhuma face do teto pode ficar NO MESMO plano de uma face do corpo:
+    // duas faces coincidentes brigam na tela (aquele chuvisco tremido) e criam
+    // arestas quádruplas no STL. Por isso o teto passa 0,02 mm do topo e as
+    // laterais dele que dariam na cara do bloco entram 0,02 mm — invisível na
+    // peça, mas planos distintos.
     const teto = (x0t, x1t, y0t, y1t) => {
-      const g = umMaterial(new THREE.BoxGeometry(x1t - x0t, y1t - y0t, H - tetoJunta));
-      g.translate((x0t + x1t) / 2, (y0t + y1t) / 2, (tetoJunta + H) / 2);
+      const g = umMaterial(new THREE.BoxGeometry(x1t - x0t, y1t - y0t, H - tetoJunta + 0.02));
+      g.translate((x0t + x1t) / 2, (y0t + y1t) / 2, (tetoJunta + H + 0.02) / 2);
       return g;
     };
     if (temPino && mordida > 0.01) {
-      partes.push(marcar(teto(0, mordida + 0.3, mordidaYDe - 0.3, mordidaYAte + 0.3), 'teto', i));
-      partes.push(marcar(teto(0, mordida + 0.3, -mordidaYAte - 0.3, -mordidaYDe + 0.3), 'teto', i));
+      partes.push(marcar(teto(0.02, mordida + 0.3, mordidaYDe - 0.3, mordidaYAte + 0.3), 'teto', i));
+      partes.push(marcar(teto(0.02, mordida + 0.3, -mordidaYAte - 0.3, -mordidaYDe + 0.3), 'teto', i));
     }
     if (temEncaixe && boca > 0.01) {
-      partes.push(marcar(teto(W - boca - 0.3, W, -bocaAsa - 0.4, bocaAsa + 0.4), 'teto', i));
+      partes.push(marcar(teto(W - boca - 0.3, W - 0.02, -bocaAsa - 0.4, bocaAsa + 0.4), 'teto', i));
     }
 
     // garfo: dois braços furados, apoiados na mesa (o eixo fica em z = rBraco)
     if (temEncaixe) {
-      const pb = perfilDeLado(W - RECUO_BRACO * e, W + dp, rBraco, rFuro);
+      const pb = perfilDeLado(W - RECUO_BRACO * e, W + dp, rBraco, rFuro, W + 0.02);
       partes.push(marcar(extrudarEmY(pb, yBracoDe, espBraco, zEixo, 26), 'braco', i));
       partes.push(marcar(extrudarEmY(pb.clone(), -yBracoAte, espBraco, zEixo, 26), 'braco', i));
     }
 
     // pescoço e pino, também apoiados na mesa
     if (temPino) {
-      const pp = perfilDeLado(RECUO_PESCOCO * e, -dp, rPescoco, 0);
+      const pp = perfilDeLado(RECUO_PESCOCO * e, -dp, rPescoco, 0, -0.02);
       partes.push(marcar(extrudarEmY(pp, -yPescoco, larguraPescoco, zEixo, 26), 'pescoco', i));
       const p = umMaterial(new THREE.CylinderGeometry(rPino, rPino, compPino, 26));
       p.translate(-dp, 0, zEixo);
@@ -896,8 +964,10 @@ function montarArticulado(op) {
     }
   }
 
-  const xMin = argola ? argola.cx - argola.rExt : 0;
-  const xMax = (letras.length - 1) * passo + W;
+  const xArgola0 = argola ? argola.bloco * passo + argola.cx - argola.rExt : 0;
+  const xArgola1 = argola ? argola.bloco * passo + argola.cx + argola.rExt : 0;
+  const xMin = Math.min(0, xArgola0);
+  const xMax = Math.max((letras.length - 1) * passo + W, xArgola1);
   const largura = xMax - xMin;
   const desloca = -(xMin + xMax) / 2;
 
@@ -928,8 +998,8 @@ function montarArticulado(op) {
       larguraPescoco, espBraco, compPino, folgaRadial, folgaVertical, giroGraus,
       passo, mordida, boca, bocaMeia, bocaAsa, asaFundo, alturaMinima, escala: e,
       pinoAlvo: DIAMETRO_PINO * e,
-      argola: argola ? { cx: argola.cx, rExt: argola.rExt, rFuro: argola.rFuro,
-                         extensao: -(argola.cx - argola.rExt) } : null,
+      argola: argola ? { bloco: argola.bloco, face: argola.face, cx: argola.cx, cy: argola.cy,
+                         rExt: argola.rExt, rFuro: argola.rFuro, extensao: argola.extensao } : null,
       comprimentoTotal: largura,
     },
   };
