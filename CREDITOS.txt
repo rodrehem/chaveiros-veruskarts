@@ -6,20 +6,115 @@ three.js (biblioteca 3D)
   Licença MIT — texto completo em vendor/LICENCA-three.js.txt
   Arquivos: vendor/three.module.min.js, vendor/three.core.min.js, vendor/addons/**
 
-As quatro fontes abaixo estão sob a SIL Open Font License 1.1. Elas foram
-convertidas do TTF original para o formato que o three.js lê; nenhum glifo foi
-alterado. A OFL permite redistribuir e converter, desde que o aviso de copyright
-e a licença acompanhem os arquivos — é o que estes arquivos fazem. Nenhuma delas
-é vendida separadamente nem usa o nome reservado original como nome comercial.
+FONTES
+------
+Todas sob a SIL Open Font License 1.1, cujo texto completo está em
+fontes/LICENCA-SIL-OFL-1.1.txt. Cada uma foi convertida do TTF original para o
+formato que o three.js lê; nenhum glifo foi alterado. A OFL permite redistribuir
+e converter desde que o aviso de copyright e a licença acompanhem os arquivos —
+é o que este arquivo e o da licença fazem. Nenhuma delas é vendida separadamente
+nem usa o nome reservado original como nome comercial.
 
-  "Firme"    Archivo Black  — Copyright (c) Omnibus-Type
-             fontes/LICENCA-Archivo-Black.txt  ->  fontes/letra-firme.typeface.json
+  "Firme" — Archivo Black
+      Copyright 2017 The Archivo Black Project Authors (https://github.com/Omnibus-Type/ArchivoBlack)
+      letra-firme.typeface.json
 
-  "Redonda"  Titan One      — Copyright (c) Juan Montoreano, Ruda Studio
-             fontes/LICENCA-Titan-One.txt      ->  fontes/letra-redonda.typeface.json
+  "Redonda" — Titan One
+      Copyright (c) 2011 Rodrigo Fuenzalida (hello@rfuenzalida.com), with Reserved Font Name "Titan One"
+      letra-redonda.typeface.json
 
-  "Estreita" Lilita One     — Copyright (c) Juan Montoreano, Ruda Studio
-             fontes/LICENCA-Lilita-One.txt     ->  fontes/letra-estreita.typeface.json
+  "Estreita" — Lilita One
+      Copyright (c) 2011 Juan Montoreano (juan@remolacha.biz), with Reserved Font Names "Lilita One"
+      letra-estreita.typeface.json
 
-  "Cursiva"  Pacifico       — Copyright (c) Vernon Adams, Jacques Le Bailly
-             fontes/LICENCA-Pacifico.txt       ->  fontes/letra-cursiva.typeface.json
+  "Pesada" — Ultra
+      Copyright (c) 2010 by Brian J. Bonislawsky DBA Astigmatic (AOETI). All rights reserved. Available under the Apache 2.0 licence. http://www.apache.org/licenses/LICENSE-2.0.html
+      letra-pesada.typeface.json
+
+  "Alta" — Anton
+      Copyright 2020 The Anton Project Authors (https://github.com/googlefonts/AntonFont.git)
+      letra-alta.typeface.json
+
+  "Apertada" — Passion One
+      Copyright (c) 2011 Fontstage (info@fontstage.com), with Reserved Font Name "Passion"
+      letra-apertada.typeface.json
+
+  "Balão" — Chango
+      Copyright (c) 2011 Fontstage (info@fontstage.com), with Reserved Font Name "Chango"
+      letra-balao.typeface.json
+
+  "Gordinha" — Coiny
+      Copyright (c) 2015, Marcelo Magalhaes
+      letra-gordinha.typeface.json
+
+  "Bolha" — Bagel Fat One
+      Copyright 2022 The Bagel Fat Project Authors (https://github.com/JAMO-TYPEFACE/BagelFat)
+      letra-bolha.typeface.json
+
+  "Chiclete" — Chewy
+      Copyright (c) 2010 by Font Diner, Inc DBA Sideshow. All rights reserved.
+      letra-chiclete.typeface.json
+
+  "Macia" — Boogaloo
+      Copyright (c) 2011, John Vargas Beltran (www.johnvargasbeltran.com|john.vargasbeltran@gmail.com), with Reserved Font Name "Boogaloo".
+      letra-macia.typeface.json
+
+  "Bloco" — Alfa Slab One
+      Copyright 2016 The Alfa Slab One Project Authors (http://www.jmsole.cl | info@jmsole.cl), with Reserved Font Name "Alfa Slab".
+      letra-bloco.typeface.json
+
+  "Clássica" — Bevan
+      Copyright 2016 The Bevan Project Authors (https://github.com/googlefonts/BevanFont)
+      letra-classica.typeface.json
+
+  "Elegante" — Abril Fatface
+      Copyright (c) 2011, Copyright (c) 2011, TypeTogether (www.type-together.com), with Reserved Font Names "Abril" and "Abril Fatface"
+      letra-elegante.typeface.json
+
+  "Requintada" — Rozha One
+      Copyright (c) 2014 Indian Type Foundry (info@indiantypefoundry.com)
+      letra-requintada.typeface.json
+
+  "Cursiva" — Lobster
+      Copyright 2010 The Lobster Project Authors (https://github.com/impallari/The-Lobster-Font), with Reserved Font Name "Lobster".
+      letra-cursiva.typeface.json
+
+  "Cursiva 2" — Lobster Two
+      Copyright (c) 2011 by Pablo Impallari. www.impallari.com. All rights reserved.
+      letra-cursiva2.typeface.json
+
+  "Pincel" — Knewave
+      Copyright (c) 2011 by Tyler Finck. All rights reserved.
+      letra-pincel.typeface.json
+
+  "Caligrafia" — Yellowtail
+      Copyright (c) 2011 by Brian J. Bonislawsky DBA Astigmatic (AOETI). All rights reserved. Available under the Apache 2.0 licence. http://www.apache.org/licenses/LICENSE-2.0.html
+      letra-caligrafia.typeface.json
+
+  "Manuscrita" — Courgette
+      Copyright (c) 2012, Sorkin Type Co (www.sorkintype.com) with Reserved Font Name "Courgette".
+      letra-manuscrita.typeface.json
+
+  "Moderna" — Righteous
+      Copyright (c) 2011 by Brian J. Bonislawsky DBA Astigmatic (AOETI) (astigma@astigmatic.com), with Reserved Font Name "Righteous"
+      letra-moderna.typeface.json
+
+  "Técnica" — Russo One
+      Copyright (c) 2011-2012, Jovanny Lemonad (jovanny.ru), with Reserved Font Name "Russo"
+      letra-tecnica.typeface.json
+
+  "Quadrada" — Bakbak One
+      Copyright 2021 The Bakbak One Project Authors (https://github.com/googlefonts/bakbak)
+      letra-quadrada.typeface.json
+
+  "Quadrinhos" — Luckiest Guy
+      Copyright (c) 2010 by Brian J. Bonislawsky DBA Astigmatic (AOETI). All rights reserved. Available under the Apache 2.0 licence. http://www.apache.org/licenses/LICENSE-2.0.html
+      letra-quadrinhos.typeface.json
+
+  "Letreiro" — Bungee
+      Copyright 2023 The Bungee Project Authors (https://github.com/djrrb/Bungee)
+      letra-letreiro.typeface.json
+
+  "Festa" — Shrikhand
+      Copyright (c) 2015 Jonny Pinhorn (jonpinhorn.typedesign@gmail.com)
+      letra-festa.typeface.json

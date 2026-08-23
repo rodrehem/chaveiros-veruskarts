@@ -1,0 +1,290 @@
+{
+ "categorias": [
+  {
+   "id": "grossas",
+   "rotulo": "Grossas"
+  },
+  {
+   "id": "redondas",
+   "rotulo": "Arredondadas"
+  },
+  {
+   "id": "serifa",
+   "rotulo": "Com serifa"
+  },
+  {
+   "id": "cursivas",
+   "rotulo": "Cursivas"
+  },
+  {
+   "id": "modernas",
+   "rotulo": "Modernas"
+  },
+  {
+   "id": "divertidas",
+   "rotulo": "Divertidas"
+  }
+ ],
+ "fontes": [
+  {
+   "id": "firme",
+   "rotulo": "Firme",
+   "cat": "grossas",
+   "nome": "Archivo Black",
+   "arquivo": "letra-firme.typeface.json",
+   "minimo": 6.2,
+   "haste": 0.1967,
+   "kb": 63
+  },
+  {
+   "id": "redonda",
+   "rotulo": "Redonda",
+   "cat": "grossas",
+   "nome": "Titan One",
+   "arquivo": "letra-redonda.typeface.json",
+   "minimo": 4.5,
+   "haste": 0.27,
+   "kb": 97
+  },
+  {
+   "id": "estreita",
+   "rotulo": "Estreita",
+   "cat": "grossas",
+   "nome": "Lilita One",
+   "arquivo": "letra-estreita.typeface.json",
+   "minimo": 7.1,
+   "haste": 0.1713,
+   "kb": 85
+  },
+  {
+   "id": "pesada",
+   "rotulo": "Pesada",
+   "cat": "grossas",
+   "nome": "Ultra",
+   "arquivo": "letra-pesada.typeface.json",
+   "minimo": 4.5,
+   "haste": 0.2673,
+   "kb": 128
+  },
+  {
+   "id": "alta",
+   "rotulo": "Alta",
+   "cat": "grossas",
+   "nome": "Anton",
+   "arquivo": "letra-alta.typeface.json",
+   "minimo": 7,
+   "haste": 0.1727,
+   "kb": 67
+  },
+  {
+   "id": "apertada",
+   "rotulo": "Apertada",
+   "cat": "grossas",
+   "nome": "Passion One",
+   "arquivo": "letra-apertada.typeface.json",
+   "minimo": 5.9,
+   "haste": 0.2053,
+   "kb": 57
+  },
+  {
+   "id": "balao",
+   "rotulo": "Balão",
+   "cat": "redondas",
+   "nome": "Chango",
+   "arquivo": "letra-balao.typeface.json",
+   "minimo": 3.9,
+   "haste": 0.3107,
+   "kb": 112
+  },
+  {
+   "id": "gordinha",
+   "rotulo": "Gordinha",
+   "cat": "redondas",
+   "nome": "Coiny",
+   "arquivo": "letra-gordinha.typeface.json",
+   "minimo": 5.6,
+   "haste": 0.2147,
+   "kb": 118
+  },
+  {
+   "id": "bolha",
+   "rotulo": "Bolha",
+   "cat": "redondas",
+   "nome": "Bagel Fat One",
+   "arquivo": "letra-bolha.typeface.json",
+   "minimo": 9.8,
+   "haste": 0.1227,
+   "kb": 126
+  },
+  {
+   "id": "chiclete",
+   "rotulo": "Chiclete",
+   "cat": "redondas",
+   "nome": "Chewy",
+   "arquivo": "letra-chiclete.typeface.json",
+   "minimo": 8.6,
+   "haste": 0.14,
+   "kb": 178
+  },
+  {
+   "id": "macia",
+   "rotulo": "Macia",
+   "cat": "redondas",
+   "nome": "Boogaloo",
+   "arquivo": "letra-macia.typeface.json",
+   "minimo": 10.5,
+   "haste": 0.1147,
+   "kb": 70
+  },
+  {
+   "id": "bloco",
+   "rotulo": "Bloco",
+   "cat": "serifa",
+   "nome": "Alfa Slab One",
+   "arquivo": "letra-bloco.typeface.json",
+   "minimo": 5.3,
+   "haste": 0.23,
+   "kb": 67
+  },
+  {
+   "id": "classica",
+   "rotulo": "Clássica",
+   "cat": "serifa",
+   "nome": "Bevan",
+   "arquivo": "letra-classica.typeface.json",
+   "minimo": 5.3,
+   "haste": 0.2307,
+   "kb": 80
+  },
+  {
+   "id": "elegante",
+   "rotulo": "Elegante",
+   "cat": "serifa",
+   "nome": "Abril Fatface",
+   "arquivo": "letra-elegante.typeface.json",
+   "minimo": 6.5,
+   "haste": 0.186,
+   "kb": 80
+  },
+  {
+   "id": "requintada",
+   "rotulo": "Requintada",
+   "cat": "serifa",
+   "nome": "Rozha One",
+   "arquivo": "letra-requintada.typeface.json",
+   "minimo": 8,
+   "haste": 0.15,
+   "kb": 77
+  },
+  {
+   "id": "cursiva",
+   "rotulo": "Cursiva",
+   "cat": "cursivas",
+   "nome": "Lobster",
+   "arquivo": "letra-cursiva.typeface.json",
+   "minimo": 14.3,
+   "haste": 0.084,
+   "kb": 104
+  },
+  {
+   "id": "cursiva2",
+   "rotulo": "Cursiva 2",
+   "cat": "cursivas",
+   "nome": "Lobster Two",
+   "arquivo": "letra-cursiva2.typeface.json",
+   "minimo": 14,
+   "haste": 0.086,
+   "kb": 130
+  },
+  {
+   "id": "pincel",
+   "rotulo": "Pincel",
+   "cat": "cursivas",
+   "nome": "Knewave",
+   "arquivo": "letra-pincel.typeface.json",
+   "minimo": 6.5,
+   "haste": 0.186,
+   "kb": 165
+  },
+  {
+   "id": "caligrafia",
+   "rotulo": "Caligrafia",
+   "cat": "cursivas",
+   "nome": "Yellowtail",
+   "arquivo": "letra-caligrafia.typeface.json",
+   "minimo": 15,
+   "haste": 0.08,
+   "kb": 177
+  },
+  {
+   "id": "manuscrita",
+   "rotulo": "Manuscrita",
+   "cat": "cursivas",
+   "nome": "Courgette",
+   "arquivo": "letra-manuscrita.typeface.json",
+   "minimo": 18.2,
+   "haste": 0.066,
+   "kb": 176
+  },
+  {
+   "id": "moderna",
+   "rotulo": "Moderna",
+   "cat": "modernas",
+   "nome": "Righteous",
+   "arquivo": "letra-moderna.typeface.json",
+   "minimo": 9.1,
+   "haste": 0.1333,
+   "kb": 105
+  },
+  {
+   "id": "tecnica",
+   "rotulo": "Técnica",
+   "cat": "modernas",
+   "nome": "Russo One",
+   "arquivo": "letra-tecnica.typeface.json",
+   "minimo": 6.9,
+   "haste": 0.1747,
+   "kb": 58
+  },
+  {
+   "id": "quadrada",
+   "rotulo": "Quadrada",
+   "cat": "modernas",
+   "nome": "Bakbak One",
+   "arquivo": "letra-quadrada.typeface.json",
+   "minimo": 8,
+   "haste": 0.1507,
+   "kb": 82
+  },
+  {
+   "id": "quadrinhos",
+   "rotulo": "Quadrinhos",
+   "cat": "divertidas",
+   "nome": "Luckiest Guy",
+   "arquivo": "letra-quadrinhos.typeface.json",
+   "minimo": 5.7,
+   "haste": 0.2127,
+   "kb": 111
+  },
+  {
+   "id": "letreiro",
+   "rotulo": "Letreiro",
+   "cat": "divertidas",
+   "nome": "Bungee",
+   "arquivo": "letra-letreiro.typeface.json",
+   "minimo": 5.4,
+   "haste": 0.2227,
+   "kb": 97
+  },
+  {
+   "id": "festa",
+   "rotulo": "Festa",
+   "cat": "divertidas",
+   "nome": "Shrikhand",
+   "arquivo": "letra-festa.typeface.json",
+   "minimo": 4.9,
+   "haste": 0.2487,
+   "kb": 158
+  }
+ ]
+}

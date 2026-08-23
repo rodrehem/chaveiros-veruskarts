@@ -11,12 +11,11 @@ import { poligonosDoTexto, caixaDosAneis } from './forma.js';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-const ARQUIVOS_FONTE = {
-  firme: 'letra-firme',
-  redonda: 'letra-redonda',
-  estreita: 'letra-estreita',
-  cursiva: 'letra-cursiva',
-};
+// Catálogo de fontes (site/fontes/fontes.json). Só o catálogo e a fonte em uso
+// são carregados na abertura; as outras chegam quando escolhidas. Todas juntas
+// passam de 2,5 MB, e ninguém precisa de tudo isso para escrever um nome.
+let catalogo = { categorias: [], fontes: [] };
+const carregando = new Map();
 
 const PADRAO = {
   estilo: 'retangulo',
@@ -260,6 +259,7 @@ function reconstruirLogo(atraso = 200) {
 // ---------------- controles ----------------
 $('#nome').addEventListener('input', (e) => {
   estado.nome = e.target.value;
+  mostrarLetraAtual();
   reconstruirLogo();
 });
 
@@ -281,9 +281,6 @@ function grupoBotoes(seletor, chaveDado, aoEscolher) {
 grupoBotoes('.grade-opcoes[aria-labelledby="rot-estilo"]', 'estilo', (v) => {
   estado.estilo = v;
   visibilidadePorEstilo();
-});
-grupoBotoes('.grade-opcoes[aria-labelledby="rot-fonte"]', 'fonte', (v) => {
-  estado.fonte = v;
 });
 grupoBotoes('.grade-opcoes[aria-labelledby="rot-tamanho"]', 'tamanho', (v) => {
   estado.tamanhoLetra = TAMANHOS[v];
@@ -355,16 +352,12 @@ $('#restaurar').addEventListener('click', () => {
   $('#op-relevo').value = PADRAO.relevo; $('#val-relevo').textContent = mm(PADRAO.relevo);
   $('#op-furo').setAttribute('aria-checked', 'true');
   $('#linha-furo').hidden = false;
-  for (const [sel, chave, valor] of [
-    ['rot-estilo', 'estilo', PADRAO.estilo],
-    ['rot-fonte', 'fonte', PADRAO.fonte],
-  ]) {
-    for (const b of $$(`.grade-opcoes[aria-labelledby="${sel}"] .cartao`)) {
-      const ativo = b.dataset[chave] === valor;
-      b.classList.toggle('ativo', ativo);
-      b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
-    }
+  for (const b of $('.grade-opcoes[aria-labelledby="rot-estilo"] .cartao')) {
+    const ativo = b.dataset.estilo === PADRAO.estilo;
+    b.classList.toggle('ativo', ativo);
+    b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
   }
+  garantirFonte(estado.fonte).then(mostrarLetraAtual).catch(() => {});
   marcarTamanhoPreset();
   visibilidadePorEstilo();
   reconstruir();
@@ -403,37 +396,174 @@ $('#baixar').addEventListener('click', () => {
   mostrarMensagem('Pronto! O arquivo foi salvo na pasta de downloads.', 'sucesso', 9000);
 });
 
-// ---------------- amostras das fontes ----------------
-// Desenha "Ana" com o contorno real de cada fonte, para o botão mostrar
-// exatamente a letra que vai sair na peça.
-function desenharAmostras() {
-  for (const botao of $$('.cartao.fonte')) {
-    const fonte = fontes[botao.dataset.fonte];
-    const alvo = botao.querySelector('.amostra');
-    if (!fonte || !alvo) continue;
-    const aneis = poligonosDoTexto(fonte, 'Ana', 100, 0, 1, 6);
-    if (!aneis.length) continue;
-    const c = caixaDosAneis(aneis);
-    let d = '';
-    for (const a of aneis) {
-      for (const anel of [a.contorno, ...a.furos]) {
-        d += 'M' + anel.map((p) => `${p[0].toFixed(1)} ${(-p[1]).toFixed(1)}`).join('L') + 'Z';
-      }
+// ---------------- seletor de letras ----------------
+
+// Desenha um texto com o contorno REAL da fonte. É o que faz cada opção do
+// seletor mostrar exatamente a letra que vai sair na peça, sem depender de a
+// fonte estar instalada no aparelho.
+function svgDoTexto(fonte, texto, altura) {
+  const aneis = poligonosDoTexto(fonte, texto, 100, 0, 1, 6);
+  if (!aneis.length) return null;
+  const c = caixaDosAneis(aneis);
+  let d = '';
+  for (const a of aneis) {
+    for (const anel of [a.contorno, ...a.furos]) {
+      d += 'M' + anel.map((p) => `${p[0].toFixed(1)} ${(-p[1]).toFixed(1)}`).join('L') + 'Z';
     }
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', `${c.x0.toFixed(1)} ${(-c.y1).toFixed(1)} ${c.largura.toFixed(1)} ${c.altura.toFixed(1)}`);
-    svg.setAttribute('height', '22');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.style.display = 'block';
-    svg.style.maxWidth = '86px';
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('fill', 'currentColor');
-    path.setAttribute('fill-rule', 'evenodd');
-    svg.appendChild(path);
-    alvo.replaceWith(svg);
-    svg.classList.add('amostra');
   }
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `${c.x0.toFixed(1)} ${(-c.y1).toFixed(1)} ${c.largura.toFixed(1)} ${c.altura.toFixed(1)}`);
+  svg.setAttribute('height', String(altura));
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('fill', 'currentColor');
+  path.setAttribute('fill-rule', 'evenodd');
+  svg.appendChild(path);
+  return svg;
+}
+
+// Carrega uma fonte uma única vez, mesmo que peçam a mesma várias vezes seguidas.
+function garantirFonte(id) {
+  if (fontes[id]) return Promise.resolve(fontes[id]);
+  if (carregando.has(id)) return carregando.get(id);
+  const item = catalogo.fontes.find((f) => f.id === id);
+  if (!item) return Promise.reject(new Error('fonte desconhecida: ' + id));
+  const p = fetch('./fontes/' + item.arquivo)
+    .then((r) => { if (!r.ok) throw new Error(item.arquivo + ': ' + r.status); return r.json(); })
+    .then((json) => { const f = criarFonte(json); fontes[id] = f; carregando.delete(id); return f; })
+    .catch((e) => { carregando.delete(id); throw e; });
+  carregando.set(id, p);
+  return p;
+}
+
+function textoDeAmostra() {
+  const n = (estado.nome || '').trim();
+  return n.length ? n.slice(0, 12) : 'Ana';
+}
+
+function mostrarLetraAtual() {
+  const item = catalogo.fontes.find((f) => f.id === estado.fonte);
+  $('#seletor-nome').textContent = item ? item.rotulo : '';
+  const alvo = $('#seletor-amostra');
+  alvo.textContent = '';
+  const fonte = fontes[estado.fonte];
+  if (!fonte) return;
+  const svg = svgDoTexto(fonte, textoDeAmostra(), 26);
+  if (svg) alvo.appendChild(svg);
+}
+
+// ---- janela do seletor ----
+const janela = $('#janela-letras');
+let montouLista = false;
+let ultimoFoco = null;
+
+function abrirLetras() {
+  ultimoFoco = document.activeElement;
+  janela.hidden = false;
+  document.body.classList.add('travado');
+  montarLista();
+  const atual = janela.querySelector('.letra-cartao.ativo');
+  (atual || janela.querySelector('.janela-fechar')).focus();
+}
+
+function fecharLetras() {
+  janela.hidden = true;
+  document.body.classList.remove('travado');
+  if (ultimoFoco) ultimoFoco.focus();
+}
+
+$('#abrir-letras').addEventListener('click', abrirLetras);
+janela.addEventListener('click', (e) => { if (e.target.closest('[data-fechar]')) fecharLetras(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !janela.hidden) fecharLetras();
+});
+
+function montarLista() {
+  const amostra = textoDeAmostra();
+  if (montouLista) { atualizarPrevias(amostra); return; }
+  montouLista = true;
+
+  const lista = $('#lista-letras');
+  lista.textContent = '';
+
+  for (const cat of catalogo.categorias) {
+    const daCat = catalogo.fontes.filter((f) => f.cat === cat.id);
+    if (!daCat.length) continue;
+    const secao = document.createElement('section');
+    secao.className = 'letra-secao';
+    const h = document.createElement('h3');
+    h.textContent = cat.rotulo;
+    secao.appendChild(h);
+    const grade = document.createElement('div');
+    grade.className = 'letra-grade';
+    for (const f of daCat) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'letra-cartao' + (f.id === estado.fonte ? ' ativo' : '');
+      b.dataset.fonte = f.id;
+      b.setAttribute('aria-pressed', f.id === estado.fonte ? 'true' : 'false');
+      const prev = document.createElement('span');
+      prev.className = 'letra-previa';
+      b.appendChild(prev);
+      const rot = document.createElement('span');
+      rot.className = 'letra-rotulo';
+      rot.textContent = f.rotulo;
+      b.appendChild(rot);
+      b.addEventListener('click', () => escolherFonte(f.id));
+      grade.appendChild(b);
+    }
+    secao.appendChild(grade);
+    lista.appendChild(secao);
+  }
+
+  // as prévias vão aparecendo conforme cada fonte chega, sem travar a janela
+  const sub = $('#janela-sub');
+  const total = catalogo.fontes.length;
+  let faltam = total;
+  sub.textContent = 'Carregando as letras... 0 de ' + total;
+  for (const f of catalogo.fontes) {
+    garantirFonte(f.id)
+      .then(() => pintarPrevia(f.id, amostra))
+      .catch(() => {})
+      .then(() => {
+        faltam--;
+        sub.textContent = faltam > 0
+          ? 'Carregando as letras... ' + (total - faltam) + ' de ' + total
+          : 'Toque em uma letra para usar';
+      });
+  }
+}
+
+function pintarPrevia(id, amostra) {
+  const fonte = fontes[id];
+  const cartao = janela.querySelector('.letra-cartao[data-fonte="' + id + '"]');
+  if (!fonte || !cartao) return;
+  const alvo = cartao.querySelector('.letra-previa');
+  alvo.textContent = '';
+  const svg = svgDoTexto(fonte, amostra, 34);
+  if (svg) alvo.appendChild(svg);
+}
+
+function atualizarPrevias(amostra) {
+  for (const f of catalogo.fontes) if (fontes[f.id]) pintarPrevia(f.id, amostra);
+}
+
+function escolherFonte(id) {
+  estado.fonte = id;
+  for (const b of janela.querySelectorAll('.letra-cartao')) {
+    const ativo = b.dataset.fonte === id;
+    b.classList.toggle('ativo', ativo);
+    b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+  }
+  fecharLetras();
+  garantirFonte(id)
+    .then(() => { mostrarLetraAtual(); reconstruir(); })
+    .catch((e) => {
+      console.error(e);
+      mostrarMensagem('Não deu para carregar essa letra. Tente outra.', 'aviso', 6000);
+    });
 }
 
 // ---------------- início ----------------
@@ -448,15 +578,14 @@ async function iniciar() {
   ajustarTela();
 
   try {
-    const pares = await Promise.all(
-      Object.entries(ARQUIVOS_FONTE).map(async ([chave, arquivo]) => {
-        const r = await fetch(`./fontes/${arquivo}.typeface.json`);
-        if (!r.ok) throw new Error(`fonte ${arquivo}: ${r.status}`);
-        return [chave, criarFonte(await r.json())];
-      })
-    );
-    for (const [chave, fonte] of pares) fontes[chave] = fonte;
-    desenharAmostras();
+    const r = await fetch('./fontes/fontes.json');
+    if (!r.ok) throw new Error('catálogo: ' + r.status);
+    catalogo = await r.json();
+    if (!catalogo.fontes.some((f) => f.id === estado.fonte)) {
+      estado.fonte = catalogo.fontes[0].id;
+    }
+    await garantirFonte(estado.fonte);
+    mostrarLetraAtual();
     reconstruir();
   } catch (erro) {
     console.error(erro);

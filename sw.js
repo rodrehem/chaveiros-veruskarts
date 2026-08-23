@@ -4,10 +4,15 @@
 // AO ALTERAR QUALQUER ARQUIVO DE site/, TROQUE O NÚMERO DA VERSÃO ABAIXO.
 // Sem isso, quem já abriu o site continua vendo a versão antiga.
 
-const VERSAO = 'chaveiros-v8';
+const VERSAO = 'chaveiros-v11';
 
 // Sem estes arquivos o aplicativo não funciona: se algum falhar, a instalação
 // do cache falha e tentamos de novo na próxima visita.
+//
+// Das 26 fontes só a padrão entra aqui. As outras somam mais de 2,5 MB e seriam
+// um download inútil para quem vai usar uma só — elas são buscadas quando
+// escolhidas e o próprio fetch abaixo guarda cada uma no cache, então a partir
+// da segunda vez funcionam offline igual.
 const ESSENCIAIS = [
   './',
   './index.html',
@@ -15,10 +20,8 @@ const ESSENCIAIS = [
   './app.js',
   './chaveiro.js',
   './forma.js',
+  './fontes/fontes.json',
   './fontes/letra-firme.typeface.json',
-  './fontes/letra-redonda.typeface.json',
-  './fontes/letra-estreita.typeface.json',
-  './fontes/letra-cursiva.typeface.json',
   './vendor/three.module.min.js',
   './vendor/three.core.min.js',
   './vendor/addons/loaders/FontLoader.js',

@@ -97,22 +97,15 @@
 
     <div class="campo">
       <span class="etiqueta" id="rot-fonte">Letra</span>
-      <div class="grade-opcoes col-2" role="group" aria-labelledby="rot-fonte">
-        <button type="button" class="cartao fonte ativo" data-fonte="firme" aria-pressed="true">
-          <span class="amostra amostra-firme">Ana</span><span>Firme</span>
-        </button>
-        <button type="button" class="cartao fonte" data-fonte="redonda" aria-pressed="false">
-          <span class="amostra amostra-redonda">Ana</span><span>Redonda</span>
-        </button>
-        <button type="button" class="cartao fonte" data-fonte="estreita" aria-pressed="false">
-          <span class="amostra amostra-estreita">Ana</span><span>Estreita</span>
-        </button>
-        <button type="button" class="cartao fonte" data-fonte="cursiva" aria-pressed="false">
-          <span class="amostra amostra-cursiva">Ana</span><span>Cursiva</span>
-        </button>
-      </div>
+      <button type="button" id="abrir-letras" class="seletor-letra"
+              aria-haspopup="dialog" aria-labelledby="rot-fonte">
+        <span class="seletor-amostra" id="seletor-amostra"></span>
+        <span class="seletor-lado">
+          <span class="seletor-nome" id="seletor-nome">Firme</span>
+          <span class="seletor-trocar">Trocar</span>
+        </span>
+      </button>
     </div>
-
     <div class="campo">
       <span class="etiqueta" id="rot-tamanho">Tamanho</span>
       <div class="grade-opcoes col-3" role="group" aria-labelledby="rot-tamanho">
@@ -199,6 +192,20 @@
   </section>
 
 </main>
+
+<div id="janela-letras" class="janela" hidden>
+  <div class="janela-fundo" data-fechar></div>
+  <div class="janela-caixa" role="dialog" aria-modal="true" aria-labelledby="titulo-letras">
+    <header class="janela-topo">
+      <div>
+        <h2 id="titulo-letras">Escolher a letra</h2>
+        <p class="janela-sub" id="janela-sub">Toque em uma letra para usar</p>
+      </div>
+      <button type="button" class="janela-fechar" data-fechar aria-label="Fechar">✕</button>
+    </header>
+    <div class="janela-corpo" id="lista-letras"></div>
+  </div>
+</div>
 
 <script type="importmap">
 {
