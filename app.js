@@ -27,6 +27,8 @@ const PADRAO = {
   traco: 0,
   folga: 0.2,
   giro: 30,
+  alturaBloco: 7,
+  arredondamento: 60,
   comFuro: true,
   diametroFuro: 5,
   paredeFuro: 3,
@@ -227,6 +229,8 @@ function reconstruir() {
       borda: estado.borda,
       folgaArticulacao: estado.folga,
       giroArticulacao: estado.giro,
+      alturaBloco: estado.alturaBloco,
+      arredondamento: estado.arredondamento,
     });
 
     if (grupoAtual) { cena.remove(grupoAtual); descartarGrupo(grupoAtual); }
@@ -306,6 +310,8 @@ function visibilidadePorEstilo() {
   $('#linha-borda').hidden = estado.estilo !== 'sombra';
   $('#linha-folga').hidden = !correntinha;
   $('#linha-giro').hidden = !correntinha;
+  $('#linha-altura').hidden = !correntinha;
+  $('#linha-arred').hidden = !correntinha;
   // o relevo só existe onde há placa por baixo do texto
   $('#linha-relevo').hidden = soLetras;
   // na correntinha cada letra tem seu bloquinho, então espaçar não faz sentido
@@ -349,6 +355,8 @@ ligarDeslizante('#op-traco', '#val-traco', (v) => { estado.traco = v; },
   (v) => (v === 0 ? 'normal' : (v > 0 ? '+' : '') + (v / 10).toString().replace('.', ',') + ' mm'));
 ligarDeslizante('#op-folga', '#val-folga', (v) => { estado.folga = v; }, mm);
 ligarDeslizante('#op-giro', '#val-giro', (v) => { estado.giro = v; }, (v) => `${v}°`);
+ligarDeslizante('#op-altura', '#val-altura', (v) => { estado.alturaBloco = v; }, mm);
+ligarDeslizante('#op-arred', '#val-arred', (v) => { estado.arredondamento = v; }, (v) => `${v}%`);
 ligarDeslizante('#op-borda', '#val-borda', (v) => { estado.borda = v; }, mm);
 ligarDeslizante('#op-diametro', '#val-diametro', (v) => { estado.diametroFuro = v; }, mm);
 ligarDeslizante('#op-parede', '#val-parede', (v) => { estado.paredeFuro = v; }, mm);
@@ -380,6 +388,8 @@ $('#restaurar').addEventListener('click', () => {
   $('#op-traco').value = PADRAO.traco; $('#val-traco').textContent = 'normal';
   $('#op-folga').value = PADRAO.folga; $('#val-folga').textContent = mm(PADRAO.folga);
   $('#op-giro').value = PADRAO.giro; $('#val-giro').textContent = `${PADRAO.giro}°`;
+  $('#op-altura').value = PADRAO.alturaBloco; $('#val-altura').textContent = mm(PADRAO.alturaBloco);
+  $('#op-arred').value = PADRAO.arredondamento; $('#val-arred').textContent = `${PADRAO.arredondamento}%`;
   $('#op-borda').value = PADRAO.borda; $('#val-borda').textContent = mm(PADRAO.borda);
   $('#op-diametro').value = PADRAO.diametroFuro; $('#val-diametro').textContent = mm(PADRAO.diametroFuro);
   $('#op-parede').value = PADRAO.paredeFuro; $('#val-parede').textContent = mm(PADRAO.paredeFuro);
